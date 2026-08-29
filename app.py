@@ -404,7 +404,7 @@ def render_player_card(p, is_captain=False, is_super_sub=False, sub_gain=None):
     st.html(html)
 
 def render_live_player_card(p, pinfo=None, is_captain=False, is_super_sub=False):
-    """Renderiza um card visual de acompanhamento ao vivo."""
+    """Renderiza um card visual de acompanhamento ao vivo com comparativo xP vs Real."""
     nome = p.get('Nome', 'Sem Nome')
     pos = p.get('Posicao', '')
     clube = p.get('Clube', '')
@@ -425,20 +425,33 @@ def render_live_player_card(p, pinfo=None, is_captain=False, is_super_sub=False)
     badge_html = super_sub_html if is_super_sub else captain_html
     escudo_html = f'<img src="{escudo}" class="club-crest"/>' if escudo else ''
 
+    # Cálculo da Pontuação Esperada (xP)
+    xp_expected = p.get('Media_Ajustada', 0.0) * (1.5 if is_captain else 1.0)
+
     if has_played:
         pts_bruto = float(pinfo.get('pontuacao', 0.0))
         pts_calc = pts_bruto * 1.5 if is_captain else pts_bruto
         pts_color = "#34d399" if pts_calc >= 0 else "#f87171"
         sub_txt = f'<div style="font-size:0.65rem;color:#f59e0b;">(Base: {pts_bruto:.2f} pts)</div>' if is_captain else ''
         
+        # Comparativo: Desempenho Real vs. xP Projetado
+        diff = pts_calc - xp_expected
+        if diff > 0.5:
+            perf_html = f'<div style="font-size:0.68rem;font-weight:800;color:#34d399;margin-top:2px;">🔥 +{diff:.2f} acima do xP ({xp_expected:.2f})</div>'
+        elif diff < -0.5:
+            perf_html = f'<div style="font-size:0.68rem;font-weight:800;color:#f87171;margin-top:2px;">❄️ {diff:.2f} abaixo do xP ({xp_expected:.2f})</div>'
+        else:
+            perf_html = f'<div style="font-size:0.68rem;font-weight:800;color:#fbbf24;margin-top:2px;">🎯 Na meta do xP ({xp_expected:.2f})</div>'
+
         score_box_html = (
             f'<div class="live-score-box">'
             f'<div class="live-score-val" style="color:{pts_color};">{pts_calc:+.2f} <span style="font-size:0.8rem;">pts</span></div>'
             f'{sub_txt}'
+            f'{perf_html}'
             f'</div>'
         )
         
-        # Scouts Chips (Garante dicionário mesmo se a API retornar None)
+        # Scouts Chips
         scouts_raw = pinfo.get('scout') or {}
         scout_chips = []
         if isinstance(scouts_raw, dict):
@@ -455,7 +468,7 @@ def render_live_player_card(p, pinfo=None, is_captain=False, is_super_sub=False)
         score_box_html = (
             f'<div class="live-score-box">'
             f'<div class="live-score-waiting">⏳ AGUARDANDO</div>'
-            f'<div style="font-size:0.65rem;color:#64748b;">Ainda não jogou</div>'
+            f'<div style="font-size:0.68rem;font-weight:700;color:#38bdf8;margin-top:2px;">⚡ xP Projetado: {xp_expected:.2f} pts</div>'
             f'</div>'
         )
         chips_html = '<span style="font-size:0.70rem;color:#64748b;">Jogo a iniciar</span>'
@@ -853,17 +866,86 @@ def main():
                     })
                 st.dataframe(pd.DataFrame(comp_data), use_container_width=True, hide_index=True)
 
-        # Botões de Download
+        # Relatório Unificado de Desempenho da Rodada (xP Projetado x Pontuação Real)
         st.markdown("---")
-        col_exp1, col_exp2 = st.columns(2)
-        csv_path, img_path = exporter.export_files(selected_df, reservas, budget, formation=chosen_formation)
         
-        with col_exp1:
-            with open(csv_path, "rb") as f:
-                st.download_button("📄 Baixar Escalação em CSV", data=f, file_name=os.path.basename(csv_path), mime="text/csv", use_container_width=True)
-        with col_exp2:
-            with open(img_path, "rb") as f:
-                st.download_button("🖼️ Baixar Imagem da Escalação (PNG)", data=f, file_name=os.path.basename(img_path), mime="image/png", use_container_width=True)
+        report_rows = []
+        for _, p in selected_df.iterrows():
+            is_cap = (p['Nome'] == capitao_nome)
+            xp_exp = p['Media_Ajustada'] * 1.5 if is_cap else p['Media_Ajustada']
+            pinfo = pontuados.get(str(p.get('ID')))
+            
+            if pinfo is not None:
+                pts_b = float(pinfo.get('pontuacao', 0.0))
+                pts_r = pts_b * 1.5 if is_cap else pts_b
+                diff_pts = round(pts_r - xp_exp, 2)
+                if diff_pts > 0.5:
+                    status_perf = "🔥 Superou xP"
+                elif diff_pts < -0.5:
+                    status_perf = "❄️ Ficou Abaixo"
+                else:
+                    status_perf = "🎯 Na Meta"
+                scouts_d = ", ".join([f"{k}:{v}" for k, v in (pinfo.get('scout') or {}).items()])
+            else:
+                pts_r = None
+                diff_pts = None
+                status_perf = "⏳ Aguardando Jogo"
+                scouts_d = "-"
+
+            report_rows.append({
+                "Tipo": "Titular",
+                "Posição": p['Posicao'],
+                "Jogador": f"👑 {p['Nome']} [C]" if is_cap else p['Nome'],
+                "Clube": p['Clube'],
+                "Preço (C$)": round(p['Preco'], 2),
+                "xP Projetado": round(xp_exp, 2),
+                "Pontos Reais": round(pts_r, 2) if pts_r is not None else "",
+                "Saldo (Real - xP)": diff_pts if diff_pts is not None else "",
+                "Desempenho": status_perf,
+                "Scouts na Rodada": scouts_d
+            })
+
+        for pos, r in reservas.items():
+            is_super = (pos == best_res_pos)
+            xp_exp = r.get('Media_Ajustada', 0.0)
+            rpinfo = pontuados.get(str(r.get('ID')))
+            
+            if rpinfo is not None:
+                pts_r = float(rpinfo.get('pontuacao', 0.0))
+                diff_pts = round(pts_r - xp_exp, 2)
+                status_perf = "🔥 Superou xP" if diff_pts > 0.5 else ("❄️ Ficou Abaixo" if diff_pts < -0.5 else "🎯 Na Meta")
+                scouts_d = ", ".join([f"{k}:{v}" for k, v in (rpinfo.get('scout') or {}).items()])
+            else:
+                pts_r = None
+                diff_pts = None
+                status_perf = "⏳ Aguardando Jogo"
+                scouts_d = "-"
+
+            nome_res_disp = f"⭐ {r['Nome']} [Reserva Luxo]" if is_super else r['Nome']
+            report_rows.append({
+                "Tipo": "Reserva",
+                "Posição": r['Posicao'],
+                "Jogador": nome_res_disp,
+                "Clube": r['Clube'],
+                "Preço (C$)": round(r['Preco'], 2),
+                "xP Projetado": round(xp_exp, 2),
+                "Pontos Reais": round(pts_r, 2) if pts_r is not None else "",
+                "Saldo (Real - xP)": diff_pts if diff_pts is not None else "",
+                "Desempenho": status_perf,
+                "Scouts na Rodada": scouts_d
+            })
+
+        report_df = pd.DataFrame(report_rows)
+        csv_report_data = report_df.to_csv(index=False).encode('utf-8-sig')
+
+        st.download_button(
+            label="📊 Baixar Relatório de Desempenho da Rodada (Pontuação Esperada x Real)",
+            data=csv_report_data,
+            file_name=f"Relatorio_Desempenho_Rodada_{rodada_num}_M1TOS_EC.csv",
+            mime="text/csv",
+            type="primary",
+            use_container_width=True
+        )
 
     except Exception as e:
         st.error(f"Ocorreu um erro ao processar os dados: {e}")
