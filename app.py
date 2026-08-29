@@ -397,6 +397,7 @@ def main():
 
     try:
         config, mercado_data, partidas_data = load_app_data(use_cache=not force_refresh)
+        api = CartolaAPI(config)
         scorer = Scorer(config)
         optimizer = TeamOptimizer(config)
         exporter = Exporter()
