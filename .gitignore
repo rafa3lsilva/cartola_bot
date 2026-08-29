@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Ambientes Virtuais
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Streamlit
+.streamlit/
+
+# Cache local de dados do Cartola FC (mantém pasta via .gitkeep)
+cache/*
+!cache/.gitkeep
+
+# Arquivos exportados gerados em execuções (mantém pastas via .gitkeep)
+exports/csv/*
+!exports/csv/.gitkeep
+exports/img/*
+!exports/img/.gitkeep
+
+# Backups e arquivos temporários
+*.bak
+*.tmp
+*.temp
+*.swp
+*.swo
+
+# IDEs e Editores
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+Thumbs.db
