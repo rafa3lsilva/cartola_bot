@@ -543,6 +543,9 @@ def main():
         st.markdown("")
         run_button = st.button("🚀 ESCALAR M1TOS EC", type="primary", use_container_width=True)
         
+        # Placeholder para o botão de exportação na Sidebar
+        export_sidebar_placeholder = st.sidebar.empty()
+        
         # Rodapé da Sidebar
         st.html('''
         <div class="sidebar-footer">
@@ -938,14 +941,17 @@ def main():
         report_df = pd.DataFrame(report_rows)
         csv_report_data = report_df.to_csv(index=False).encode('utf-8-sig')
 
-        st.download_button(
-            label="📊 Baixar Relatório de Desempenho da Rodada (Pontuação Esperada x Real)",
-            data=csv_report_data,
-            file_name=f"Relatorio_Desempenho_Rodada_{rodada_num}_M1TOS_EC.csv",
-            mime="text/csv",
-            type="primary",
-            use_container_width=True
-        )
+        # Renderizar Botão na Sidebar
+        with export_sidebar_placeholder.container():
+            st.html('<div class="sidebar-section">📊 EXPORTAR RELATÓRIO</div>')
+            st.download_button(
+                label="📥 Baixar Relatório (xP x Real)",
+                data=csv_report_data,
+                file_name=f"Relatorio_Desempenho_Rodada_{rodada_num}_M1TOS_EC.csv",
+                mime="text/csv",
+                type="secondary",
+                use_container_width=True
+            )
 
     except Exception as e:
         st.error(f"Ocorreu um erro ao processar os dados: {e}")
