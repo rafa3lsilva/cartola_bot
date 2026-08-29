@@ -266,12 +266,83 @@ st.html("""
         padding-top: 10px;
         border-top: 1px solid #1e293b;
     }
+    /* Estilos dos Cards de Parciais Ao Vivo */
+    .live-card {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 14px;
+        padding: 12px 8px;
+        text-align: center;
+        position: relative;
+        height: 275px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        align-items: center;
+        box-sizing: border-box;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    }
+    .live-card-playing {
+        border-color: #38bdf8;
+        box-shadow: 0 0 14px rgba(56, 189, 248, 0.25);
+    }
+    .live-card-captain {
+        background: linear-gradient(145deg, #2a2415, #1e1b10);
+        border: 2px solid #f59e0b;
+        box-shadow: 0 0 15px rgba(245, 158, 11, 0.3);
+    }
+    .live-card-super-sub {
+        background: linear-gradient(145deg, #132e23, #0d1e17);
+        border: 2px solid #10b981;
+        box-shadow: 0 0 15px rgba(16, 185, 129, 0.3);
+    }
+    .live-score-box {
+        background: rgba(15, 23, 42, 0.95);
+        border: 1px solid #334155;
+        border-radius: 10px;
+        padding: 6px 10px;
+        margin: 4px 0;
+        width: 90%;
+    }
+    .live-score-val {
+        font-size: 1.35rem;
+        font-weight: 900;
+        color: #34d399;
+    }
+    .live-score-waiting {
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: #94a3b8;
+    }
+    .live-scouts-container {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 3px;
+        min-height: 24px;
+    }
+    .scout-chip {
+        font-size: 0.65rem;
+        font-weight: 800;
+        padding: 2px 5px;
+        border-radius: 4px;
+        background: #334155;
+        color: #f1f5f9;
+    }
+    .scout-chip-g { background: #059669; color: #fff; }
+    .scout-chip-a { background: #0284c7; color: #fff; }
+    .scout-chip-ds { background: #4f46e5; color: #fff; }
+    .scout-chip-de { background: #d97706; color: #fff; }
+    .scout-chip-sg { background: #16a34a; color: #fff; }
+    .scout-chip-ca { background: #eab308; color: #000; }
+    .scout-chip-cv { background: #dc2626; color: #fff; }
     @media (max-width: 768px) {
         .main-header { font-size: 1.6rem; }
         .metric-value { font-size: 1.25rem; }
-        .player-card { height: 235px; padding: 8px 4px; }
+        .player-card, .live-card { height: 250px; padding: 8px 4px; }
         .player-photo { width: 48px; height: 48px; }
         .player-name { font-size: 0.80rem; }
+        .live-score-val { font-size: 1.15rem; }
     }
 </style>
 """)
@@ -328,6 +399,77 @@ def render_player_card(p, is_captain=False, is_super_sub=False, sub_gain=None):
         f'</div>'
         f'{gain_html}'
         f'</div>'
+        f'</div>'
+    )
+    st.html(html)
+
+def render_live_player_card(p, pinfo=None, is_captain=False, is_super_sub=False):
+    """Renderiza um card visual de acompanhamento ao vivo."""
+    nome = p.get('Nome', 'Sem Nome')
+    pos = p.get('Posicao', '')
+    clube = p.get('Clube', '')
+    foto = p.get('Foto', '') or "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/generica.png"
+    escudo = p.get('Escudo', '')
+
+    has_played = (pinfo is not None)
+    card_class = "live-card"
+    if has_played:
+        card_class += " live-card-playing"
+    if is_captain:
+        card_class += " live-card-captain"
+    elif is_super_sub:
+        card_class += " live-card-super-sub"
+
+    captain_html = '<div class="badge-captain">👑 CAPITÃO (1.5x)</div>' if is_captain else ''
+    super_sub_html = '<div class="badge-captain" style="background:#10b981;color:#fff;">⭐ RESERVA LUXO</div>' if is_super_sub else ''
+    badge_html = super_sub_html if is_super_sub else captain_html
+    escudo_html = f'<img src="{escudo}" class="club-crest"/>' if escudo else ''
+
+    if has_played:
+        pts_bruto = float(pinfo.get('pontuacao', 0.0))
+        pts_calc = pts_bruto * 1.5 if is_captain else pts_bruto
+        pts_color = "#34d399" if pts_calc >= 0 else "#f87171"
+        sub_txt = f'<div style="font-size:0.65rem;color:#f59e0b;">(Base: {pts_bruto:.2f} pts)</div>' if is_captain else ''
+        
+        score_box_html = (
+            f'<div class="live-score-box">'
+            f'<div class="live-score-val" style="color:{pts_color};">{pts_calc:+.2f} <span style="font-size:0.8rem;">pts</span></div>'
+            f'{sub_txt}'
+            f'</div>'
+        )
+        
+        # Scouts Chips
+        scouts_raw = pinfo.get('scout', {})
+        scout_chips = []
+        if scouts_raw.get('G'): scout_chips.append(f'<span class="scout-chip scout-chip-g">⚽ {scouts_raw["G"]}G</span>')
+        if scouts_raw.get('A'): scout_chips.append(f'<span class="scout-chip scout-chip-a">🎯 {scouts_raw["A"]}A</span>')
+        if scouts_raw.get('DS'): scout_chips.append(f'<span class="scout-chip scout-chip-ds">🛡️ {scouts_raw["DS"]}DS</span>')
+        if scouts_raw.get('DE'): scout_chips.append(f'<span class="scout-chip scout-chip-de">🧤 {scouts_raw["DE"]}DE</span>')
+        if scouts_raw.get('SG'): scout_chips.append(f'<span class="scout-chip scout-chip-sg">🛡️ SG</span>')
+        if scouts_raw.get('CA'): scout_chips.append(f'<span class="scout-chip scout-chip-ca">🟨 {scouts_raw["CA"]}CA</span>')
+        if scouts_raw.get('CV'): scout_chips.append(f'<span class="scout-chip scout-chip-cv">🟥 {scouts_raw["CV"]}CV</span>')
+        
+        chips_html = "".join(scout_chips) if scout_chips else '<span style="font-size:0.70rem;color:#94a3b8;">Em campo</span>'
+    else:
+        score_box_html = (
+            f'<div class="live-score-box">'
+            f'<div class="live-score-waiting">⏳ AGUARDANDO</div>'
+            f'<div style="font-size:0.65rem;color:#64748b;">Ainda não jogou</div>'
+            f'</div>'
+        )
+        chips_html = '<span style="font-size:0.70rem;color:#64748b;">Jogo a iniciar</span>'
+
+    html = (
+        f'<div class="{card_class}">'
+        f'{badge_html}'
+        f'<div class="badge-pos">{pos[:3].upper()}</div>'
+        f'<div class="card-top">'
+        f'<img src="{foto}" class="player-photo" onerror="this.src=\'https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/generica.png\';"/>'
+        f'<div class="player-name" title="{nome}">{nome}</div>'
+        f'<div class="player-club">{escudo_html}<span>{clube}</span></div>'
+        f'</div>'
+        f'{score_box_html}'
+        f'<div class="live-scouts-container">{chips_html}</div>'
         f'</div>'
     )
     st.html(html)
@@ -617,7 +759,63 @@ def main():
                 else:
                     st.info(f"⭐ **Reserva de Luxo Oficial:** {super_res['Nome']} ({super_res['Posicao']} - {super_res['Clube']}) ainda não jogou.")
 
-            st.dataframe(pd.DataFrame(live_rows), use_container_width=True, hide_index=True)
+            # ATAQUE AO VIVO
+            atacantes = selected_df[selected_df['Posicao'] == 'Atacante']
+            if not atacantes.empty:
+                st.html('<div class="sector-header">⚡ ATAQUE AO VIVO</div>')
+                cols_ata = st.columns(len(atacantes))
+                for idx, (_, p) in enumerate(atacantes.iterrows()):
+                    with cols_ata[idx]:
+                        pinfo = pontuados.get(str(p.get('ID')))
+                        render_live_player_card(p, pinfo=pinfo, is_captain=(p['Nome'] == capitao_nome))
+
+            # MEIO-CAMPO AO VIVO
+            meias = selected_df[selected_df['Posicao'] == 'Meia']
+            if not meias.empty:
+                st.html('<div class="sector-header">🎯 MEIO-CAMPO AO VIVO</div>')
+                cols_mei = st.columns(len(meias))
+                for idx, (_, p) in enumerate(meias.iterrows()):
+                    with cols_mei[idx]:
+                        pinfo = pontuados.get(str(p.get('ID')))
+                        render_live_player_card(p, pinfo=pinfo, is_captain=(p['Nome'] == capitao_nome))
+
+            # DEFESA AO VIVO
+            defesa = selected_df[selected_df['Posicao'].isin(['Lateral', 'Zagueiro'])]
+            if not defesa.empty:
+                st.html('<div class="sector-header">🛡️ LINHA DEFENSIVA AO VIVO</div>')
+                cols_def = st.columns(len(defesa))
+                for idx, (_, p) in enumerate(defesa.iterrows()):
+                    with cols_def[idx]:
+                        pinfo = pontuados.get(str(p.get('ID')))
+                        render_live_player_card(p, pinfo=pinfo, is_captain=(p['Nome'] == capitao_nome))
+
+            # GOLEIRO & TÉCNICO AO VIVO
+            gol_tec = selected_df[selected_df['Posicao'].isin(['Goleiro', 'Técnico'])]
+            if not gol_tec.empty:
+                st.html('<div class="sector-header">🧤 GOLEIRO & COMANDO TÉCNICO AO VIVO</div>')
+                cols_base = st.columns([1, 1, 1, 1])
+                goleiro_df = selected_df[selected_df['Posicao'] == 'Goleiro']
+                tecnico_df = selected_df[selected_df['Posicao'] == 'Técnico']
+                
+                with cols_base[1]:
+                    if not goleiro_df.empty:
+                        gp = goleiro_df.iloc[0]
+                        render_live_player_card(gp, pinfo=pontuados.get(str(gp.get('ID'))), is_captain=(gp['Nome'] == capitao_nome))
+                with cols_base[2]:
+                    if not tecnico_df.empty:
+                        tp = tecnico_df.iloc[0]
+                        render_live_player_card(tp, pinfo=pontuados.get(str(tp.get('ID'))), is_captain=False)
+
+            # BANCO DE RESERVAS AO VIVO
+            if reservas:
+                st.markdown("---")
+                st.html('<div class="sector-header">🔄 BANCO DE RESERVAS AO VIVO</div>')
+                res_cols = st.columns(len(reservas))
+                for idx, (pos, r) in enumerate(reservas.items()):
+                    with res_cols[idx]:
+                        is_super = (pos == best_res_pos)
+                        rpinfo = pontuados.get(str(r.get('ID')))
+                        render_live_player_card(r, pinfo=rpinfo, is_super_sub=is_super)
 
         with tab_table:
             # Tabela Tradicional para quem quiser consultar números
