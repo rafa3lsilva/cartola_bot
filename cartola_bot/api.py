@@ -62,3 +62,30 @@ class CartolaAPI:
         """Obtém os dados das partidas da rodada."""
         url = self.config.get('partidas_url', "https://api.cartola.globo.com/partidas")
         return self._fetch(url, "partidas", use_cache)
+
+    def get_pontuados(self):
+        """Obtém as pontuações e scouts em tempo real dos atletas na rodada."""
+        url = "https://api.cartola.globo.com/atletas/pontuados"
+        try:
+            response = requests.get(url, headers=self.headers, timeout=5)
+            response.raise_for_status()
+            data = response.json()
+            with open(self._get_cache_path("pontuados"), 'w', encoding='utf-8') as f:
+                json.dump(data, f)
+            return data
+        except Exception as e:
+            cache_path = self._get_cache_path("pontuados")
+            if os.path.exists(cache_path):
+                with open(cache_path, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            return {"atletas": {}, "rodada": None}
+
+    def get_mercado_status(self):
+        """Obtém o status do mercado (1: Aberto, 2: Fechado/Jogos em andamento, 6: Apuração)."""
+        url = "https://api.cartola.globo.com/mercado/status"
+        try:
+            response = requests.get(url, headers=self.headers, timeout=5)
+            response.raise_for_status()
+            return response.json()
+        except Exception:
+            return {"status_mercado": 1, "rodada_atual": None}

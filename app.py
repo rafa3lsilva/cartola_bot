@@ -446,8 +446,13 @@ def main():
         with c4:
             st.html(f'<div class="metric-card"><div class="metric-title">📋 Formação Tática</div><div class="metric-value">{chosen_formation}</div></div>')
 
-        # 2. Alternador de Visualização (Cards vs Tabela)
-        tab_cards, tab_table, tab_comp = st.tabs(["🏟️ Escalação Tática (Cards)", "📊 Tabela Detalhada", "📈 Comparativo de Formações"])
+        # 2. Alternador de Visualização (Cards vs Parciais vs Tabela)
+        tab_cards, tab_live, tab_table, tab_comp = st.tabs([
+            "🏟️ Escalação Tática (Cards)", 
+            "🔴 Parciais Ao Vivo", 
+            "📊 Tabela Detalhada", 
+            "📈 Comparativo de Formações"
+        ])
 
         with tab_cards:
             # ATAQUE
@@ -514,6 +519,104 @@ def main():
 
                 super_r = reservas[best_res_pos]
                 st.success(f"🌟 **Marque a estrelinha de Reserva de Luxo no Cartola em:** **{super_r['Nome']} ({super_r['Posicao']} - {super_r['Clube']})** | Teto: **{super_r.get('Upside', 0):.2f} pts**!")
+
+        with tab_live:
+            # 🔴 PARCIAIS AO VIVO
+            col_l1, col_l2 = st.columns([3, 1])
+            with col_l1:
+                st.subheader(f"🔴 Parciais em Tempo Real • M1TOS EC (Rodada {rodada_num})")
+            with col_l2:
+                refresh_live = st.button("🔄 Atualizar Parciais", use_container_width=True)
+
+            pontuados_data = api.get_pontuados()
+            pontuados = pontuados_data.get('atletas', {})
+            total_pontuados_count = len(pontuados)
+
+            if total_pontuados_count == 0:
+                st.info("ℹ️ Os jogos da rodada ainda não começaram ou os scouts ao vivo ainda não foram abertos pela Globo. Assim que os jogos começarem, as parciais aparecerão aqui automaticamente!")
+            else:
+                st.caption(f"📡 Dados ao vivo sincronizados com a Globo • {total_pontuados_count} atletas já pontuaram na rodada.")
+
+            # Calcular parciais do time
+            live_rows = []
+            total_live_pts = 0.0
+            jogadores_jogando = 0
+            
+            # Mapear pontuações por posição para checagem do reserva de luxo
+            pos_starter_scores = {'Goleiro': [], 'Lateral': [], 'Zagueiro': [], 'Meia': [], 'Atacante': []}
+
+            for _, p in selected_df.iterrows():
+                atleta_id_str = str(p.get('ID'))
+                is_cap = (p['Nome'] == capitao_nome)
+                
+                if atleta_id_str in pontuados:
+                    pinfo = pontuados[atleta_id_str]
+                    pts_bruto = float(pinfo.get('pontuacao', 0.0))
+                    pts_calc = pts_bruto * 1.5 if is_cap else pts_bruto
+                    total_live_pts += pts_calc
+                    jogadores_jogando += 1
+                    status_live = f"🟢 {pts_bruto:.2f} pts"
+                    
+                    scouts_raw = pinfo.get('scout', {})
+                    scouts_str = ", ".join([f"{k}:{v}" for k, v in scouts_raw.items()]) if scouts_raw else "Em campo"
+                else:
+                    pts_bruto = None
+                    pts_calc = 0.0
+                    status_live = "⏳ Aguardando jogo"
+                    scouts_str = "-"
+
+                if p['Posicao'] in pos_starter_scores and pts_bruto is not None:
+                    pos_starter_scores[p['Posicao']].append({'Nome': p['Nome'], 'pts': pts_bruto})
+
+                nome_disp = f"👑 {p['Nome']} [C]" if is_cap else p['Nome']
+                live_rows.append({
+                    "Posição": p['Posicao'],
+                    "Jogador": nome_disp,
+                    "Clube": p['Clube'],
+                    "Status / Pontos": status_live,
+                    "Pontos c/ Capitão": f"{pts_calc:.2f} pts" if pts_bruto is not None else "-",
+                    "Scouts na Partida": scouts_str
+                })
+
+            # Card de Pontuação Parcial Total
+            st.html(f'''
+            <div class="metric-card" style="background:linear-gradient(135deg, #1e3a8a, #0f172a); border:2px solid #38bdf8;">
+                <div class="metric-title" style="color:#38bdf8;">⚡ PONTUAÇÃO PARCIAL TOTAL DO M1TOS EC</div>
+                <div class="metric-value" style="font-size:2.2rem; color:#f8fafc;">{total_live_pts:.2f} <span style="font-size:1.1rem; color:#38bdf8;">pts</span></div>
+                <div style="font-size:0.80rem; color:#94a3b8; margin-top:4px;">{jogadores_jogando} de 12 atletas já entraram em campo</div>
+            </div>
+            ''')
+
+            # Checagem ao vivo do Reserva de Luxo
+            best_res_pos = None
+            max_upside = -1.0
+            for pos, r in reservas.items():
+                up = r.get('Upside', r.get('Media_Ajustada', 0))
+                if up > max_upside:
+                    max_upside = up
+                    best_res_pos = pos
+
+            if best_res_pos and best_res_pos in reservas:
+                super_res = reservas[best_res_pos]
+                res_id_str = str(super_res.get('ID'))
+                
+                if res_id_str in pontuados:
+                    pts_res = float(pontuados[res_id_str].get('pontuacao', 0.0))
+                    titulares_pos = pos_starter_scores.get(best_res_pos, [])
+                    
+                    if titulares_pos:
+                        min_tit = min(titulares_pos, key=lambda x: x['pts'])
+                        if pts_res > min_tit['pts']:
+                            diff = pts_res - min_tit['pts']
+                            st.success(f"🎉 **TROCA AUTOMÁTICA ATIVA AO VIVO!** O Reserva de Luxo **{super_res['Nome']} ({pts_res:.2f} pts)** superou **{min_tit['Nome']} ({min_tit['pts']:.2f} pts)**! Ganho real: **+{diff:.2f} pts** no M1TOS EC!")
+                        else:
+                            st.info(f"🔄 **Reserva de Luxo:** {super_res['Nome']} fez {pts_res:.2f} pts. Para entrar, precisa superar {min_tit['Nome']} ({min_tit['pts']:.2f} pts).")
+                    else:
+                        st.info(f"🔄 **Reserva de Luxo:** {super_res['Nome']} já jogou e fez **{pts_res:.2f} pts**! Aguardando os titulares da posição jogarem.")
+                else:
+                    st.info(f"⭐ **Reserva de Luxo Oficial:** {super_res['Nome']} ({super_res['Posicao']} - {super_res['Clube']}) ainda não jogou.")
+
+            st.dataframe(pd.DataFrame(live_rows), use_container_width=True, hide_index=True)
 
         with tab_table:
             # Tabela Tradicional para quem quiser consultar números
