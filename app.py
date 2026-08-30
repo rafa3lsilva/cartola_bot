@@ -369,10 +369,99 @@ st.html("""
     .scout-chip-sg { background: #16a34a; color: #fff; }
     .scout-chip-ca { background: #eab308; color: #000; }
     .scout-chip-cv { background: #dc2626; color: #fff; }
+    
+    /* Estilos do Mercado de Atletas e Consultor Tático */
+    .market-player-card {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 14px;
+        padding: 10px 8px;
+        text-align: center;
+        position: relative;
+        height: 285px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        align-items: center;
+        box-sizing: border-box;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        margin-bottom: 10px;
+    }
+    .market-tag {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 6px;
+        font-size: 0.68rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        margin-top: 2px;
+    }
+    .market-rationale {
+        font-size: 0.70rem;
+        color: #94a3b8;
+        background: rgba(15, 23, 42, 0.7);
+        border-radius: 6px;
+        padding: 4px 6px;
+        line-height: 1.25;
+        width: 92%;
+        min-height: 38px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+    }
+    .consult-card {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 12px;
+        padding: 12px 14px;
+        margin-bottom: 12px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    .consult-badge {
+        font-size: 0.70rem;
+        font-weight: 800;
+        padding: 3px 8px;
+        border-radius: 6px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .consult-badge-manter {
+        background: rgba(16, 185, 129, 0.15);
+        color: #34d399;
+        border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .consult-badge-atencao {
+        background: rgba(245, 158, 11, 0.15);
+        color: #fbbf24;
+        border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+    .consult-badge-trocar {
+        background: rgba(239, 68, 68, 0.15);
+        color: #f87171;
+        border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+    .consult-rationale {
+        font-size: 0.80rem;
+        color: #e2e8f0;
+        background: rgba(15, 23, 42, 0.75);
+        border-radius: 8px;
+        padding: 8px 10px;
+        margin-top: 8px;
+        line-height: 1.35;
+    }
+    .consult-swap-box {
+        background: linear-gradient(135deg, rgba(30, 58, 138, 0.25), rgba(15, 23, 42, 0.85));
+        border: 1px dashed #38bdf8;
+        border-radius: 8px;
+        padding: 8px 10px;
+        margin-top: 8px;
+    }
+
     @media (max-width: 768px) {
         .main-header { font-size: 1.6rem; }
         .metric-value { font-size: 1.25rem; }
-        .player-card, .live-card { height: 250px; padding: 8px 4px; }
+        .player-card, .live-card, .market-player-card { height: 260px; padding: 8px 4px; }
         .player-photo { width: 48px; height: 48px; }
         .player-name { font-size: 0.80rem; }
         .live-score-val { font-size: 1.15rem; }
@@ -388,6 +477,110 @@ def load_app_data(use_cache=True):
     mercado_data = api.get_mercado(use_cache=use_cache)
     partidas_data = api.get_partidas(use_cache=use_cache)
     return config, mercado_data, partidas_data
+
+def render_market_player_card(p):
+    """Renderiza card visual no mercado de atletas com tags inteligentes."""
+    nome = p.get('Nome', 'Sem Nome')
+    pos = p.get('Posicao', '')
+    clube = p.get('Clube', '')
+    preco = p.get('Preco', 0.0)
+    media = p.get('Media', 0.0)
+    xp = p.get('Media_Ajustada', 0.0)
+    confronto = p.get('Confronto', '')
+    tag = p.get('Tag', 'Boa Opção')
+    tag_color = p.get('Tag_Color', '#f59e0b')
+    just = p.get('Justificativa', '')
+    sg_prob = p.get('SG_Prob', None)
+    foto = p.get('Foto', '') or "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/generica.png"
+    escudo = p.get('Escudo', '')
+
+    escudo_html = f'<img src="{escudo}" class="club-crest"/>' if escudo else ''
+    sg_html = f'<span class="stat-badge badge-sg">🛡️ {sg_prob:.0f}%</span>' if (sg_prob is not None and pos in ['Goleiro', 'Lateral', 'Zagueiro']) else ''
+    
+    html = (
+        f'<div class="market-player-card">'
+        f'<div style="width:100%; display:flex; justify-content:space-between; align-items:center;">'
+        f'<span class="market-tag" style="background:{tag_color}20; color:{tag_color}; border:1px solid {tag_color}40;">🏷️ {tag}</span>'
+        f'<span class="stat-badge badge-pos" style="position:static;">{pos[:3].upper()}</span>'
+        f'</div>'
+        f'<div class="card-top">'
+        f'<img src="{foto}" class="player-photo" onerror="this.src=\'https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/generica.png\';"/>'
+        f'<div class="player-name" title="{nome}">{nome}</div>'
+        f'<div class="player-club">{escudo_html}<span>{clube} • {confronto}</span></div>'
+        f'</div>'
+        f'<div style="margin:4px 0; display:flex; justify-content:center; gap:2px;">'
+        f'<span class="stat-badge badge-price">C$ {preco:.2f}</span>'
+        f'<span class="stat-badge badge-xp">⚡ {xp:.2f}</span>'
+        f'{sg_html}'
+        f'</div>'
+        f'<div class="market-rationale" title="{just}">{just}</div>'
+        f'</div>'
+    )
+    st.html(html)
+
+def render_consult_player_card(s):
+    """Renderiza card de diagnóstico individual do consultor tático."""
+    nome = s.get('Nome', 'Sem Nome')
+    pos = s.get('Posicao', '')
+    clube = s.get('Clube', '')
+    preco = s.get('Preco', 0.0)
+    xp_final = s.get('xP_Final', 0.0)
+    confronto = s.get('Confronto', '')
+    is_cap = s.get('Is_Capitao', False)
+    status_cons = s.get('Status_Consultoria', 'MANTER')
+    just = s.get('Justificativa', '')
+    sugestao = s.get('Sugestao_Troca')
+    foto = s.get('Foto', '') or "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/generica.png"
+    escudo = s.get('Escudo', '')
+
+    if status_cons == 'MANTER':
+        badge_status_html = '<span class="consult-badge consult-badge-manter">✅ MANTER</span>'
+        border_color = "#10b981"
+    elif status_cons == 'ATENCAO':
+        badge_status_html = '<span class="consult-badge consult-badge-atencao">⚠️ ATENÇÃO / APOSTA</span>'
+        border_color = "#f59e0b"
+    else:
+        badge_status_html = '<span class="consult-badge consult-badge-trocar">❌ RECOMENDA TROCA</span>'
+        border_color = "#ef4444"
+
+    cap_html = '<span style="background:#f59e0b; color:#000; font-size:0.65rem; font-weight:800; padding:2px 6px; border-radius:4px; margin-right:4px;">👑 CAPITÃO (1.5x)</span>' if is_cap else ''
+    escudo_html = f'<img src="{escudo}" class="club-crest"/>' if escudo else ''
+
+    swap_html = ""
+    if sugestao:
+        gain_sign = "+" if sugestao['Delta_xP'] >= 0 else ""
+        price_txt = f"(Economiza C$ {sugestao['Delta_Preco']:.2f})" if sugestao['Delta_Preco'] > 0 else f"(Custa +C$ {-sugestao['Delta_Preco']:.2f})" if sugestao['Delta_Preco'] < 0 else "(Mesmo preço)"
+        swap_html = (
+            f'<div class="consult-swap-box">'
+            f'<div style="font-weight:800; font-size:0.75rem; color:#38bdf8; margin-bottom:2px;">🔄 Sugestão do Modelo:</div>'
+            f'<div style="font-size:0.78rem; color:#f8fafc;">Substituir por <b>{sugestao["Nome"]}</b> ({sugestao["Clube"]} - C$ {sugestao["Preco"]:.2f})</div>'
+            f'<div style="font-size:0.72rem; color:#34d399; font-weight:700; margin-top:2px;">{gain_sign}{sugestao["Delta_xP"]:.2f} pts esperados {price_txt}</div>'
+            f'<div style="font-size:0.68rem; color:#94a3b8; margin-top:3px; font-style:italic;">{sugestao["Justificativa"]}</div>'
+            f'</div>'
+        )
+
+    html = (
+        f'<div class="consult-card" style="border-left: 4px solid {border_color};">'
+        f'<div style="display:flex; justify-content:space-between; align-items:center; width:100%; margin-bottom:6px;">'
+        f'<div>{cap_html}<span style="font-size:0.70rem; font-weight:800; color:#94a3b8; text-transform:uppercase;">{pos}</span></div>'
+        f'{badge_status_html}'
+        f'</div>'
+        f'<div style="display:flex; align-items:center; width:100%; gap:10px;">'
+        f'<img src="{foto}" style="width:48px; height:48px; border-radius:50%; object-fit:cover; border:2px solid #475569;" onerror="this.src=\'https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/generica.png\';"/>'
+        f'<div style="flex:1; text-align:left;">'
+        f'<div style="font-weight:800; font-size:0.95rem; color:#f8fafc;">{nome}</div>'
+        f'<div style="font-size:0.75rem; color:#94a3b8;">{escudo_html}{clube} • {confronto} • C$ {preco:.2f}</div>'
+        f'</div>'
+        f'<div style="text-align:right;">'
+        f'<div style="font-size:0.65rem; color:#94a3b8; font-weight:700;">PROJEÇÃO</div>'
+        f'<div style="font-size:1.15rem; font-weight:900; color:#38bdf8;">{xp_final:.2f} pts</div>'
+        f'</div>'
+        f'</div>'
+        f'<div class="consult-rationale">{just}</div>'
+        f'{swap_html}'
+        f'</div>'
+    )
+    st.html(html)
 
 def render_player_card(p, is_captain=False, is_super_sub=False, sub_gain=None):
     """Renderiza um card visual elegante para um jogador."""
@@ -686,43 +879,140 @@ def main():
         with c4:
             st.html(f'<div class="metric-card"><div class="metric-title">📋 Formação Tática</div><div class="metric-value">{chosen_formation}</div></div>')
 
-        # Banner de Salvamento no Modo Simulador
-        if app_mode == "simulador" and selected_df is not None and not selected_df.empty:
-            st.markdown("---")
-            col_save1, col_save2 = st.columns([3, 2])
-            with col_save1:
-                st.info(f"💡 Gostou desta escalação para a **Rodada {rodada_num}**? Salve-a como seu **Time Oficial** para acompanhar as parciais ao vivo!")
-            with col_save2:
-                if st.button(f"💾 SALVAR COMO TIME OFICIAL (R{rodada_num})", type="primary", use_container_width=True):
-                    cap_r = selected_df[selected_df['Is_Capitao']].iloc[0] if 'Is_Capitao' in selected_df.columns and selected_df['Is_Capitao'].any() else selected_df.iloc[0]
-                    cap_id = int(cap_r['ID'])
-                    res_ids = {pos: int(r['ID']) for pos, r in reservas.items()}
-                    
-                    best_res_pos_calc = None
-                    max_up = -1.0
-                    for pos, r in reservas.items():
-                        up = r.get('Upside', r.get('Media_Ajustada', 0))
-                        if up > max_up:
-                            max_up = up
-                            best_res_pos_calc = pos
-                            
-                    save_official_team(
-                        rodada=rodada_num,
-                        starters_ids=selected_df['ID'].tolist(),
-                        captain_id=cap_id,
-                        reserves_ids=res_ids,
-                        super_sub_pos=best_res_pos_calc or "Atacante"
-                    )
-                    st.success(f"✅ Time da Rodada {rodada_num} salvo como Oficial com sucesso!")
-                    st.rerun()
-
-        # 2. Alternador de Visualização (Cards vs Parciais vs Tabela)
-        tab_cards, tab_live, tab_table, tab_comp = st.tabs([
+        # 2. Alternador de Visualização Expandido
+        tab_market, tab_consult, tab_cards, tab_live, tab_table, tab_comp = st.tabs([
+            "🛒 Mercado & Tags",
+            "🔍 Consultor Tático",
             "🏟️ Escalação Tática (Cards)", 
             "🔴 Parciais Ao Vivo", 
             "📊 Tabela Detalhada", 
             "📈 Comparativo de Formações"
         ])
+
+        with tab_market:
+            # 🛒 MERCADO DE ATLETAS COM TAGS INTELIGENTES
+            st.subheader(f"🛒 Mercado Oficial de Atletas • Rodada {rodada_num}")
+            st.caption("Explore os atletas com tags de recomendação geradas pelo modelo matemático. Use a busca e filtros para montar ou ajustar sua equipe.")
+            
+            # Filtros do Mercado
+            f_col1, f_col2, f_col3, f_col4 = st.columns([1.5, 1.5, 1.5, 2.5])
+            with f_col1:
+                pos_filter = st.selectbox("Posição:", ["Todas", "Goleiro", "Lateral", "Zagueiro", "Meia", "Atacante", "Técnico"], index=0)
+            with f_col2:
+                club_list = ["Todos"] + sorted(list(df['Clube'].unique()))
+                club_filter = st.selectbox("Clube:", club_list, index=0)
+            with f_col3:
+                tag_filter = st.selectbox("Tag do Modelo:", ["Todas", "Excelente", "Boa Opção", "Aposta", "Evitar"], index=0)
+            with f_col4:
+                search_query = st.text_input("🔍 Buscar Atleta:", placeholder="Digite o nome do jogador...")
+
+            # Ordenação
+            ord_col1, ord_col2 = st.columns([2, 2])
+            with ord_col1:
+                sort_by = st.selectbox("Ordenar por:", [
+                    "Maior xP (Projetado)", "Menor Preço", "Maior Preço", "Maior Média Histórica", "Maior Teto (Upside)"
+                ], index=0)
+
+            # Filtrar DataFrame do Mercado
+            m_df = df.copy()
+            if pos_filter != "Todas":
+                m_df = m_df[m_df['Posicao'] == pos_filter]
+            if club_filter != "Todos":
+                m_df = m_df[m_df['Clube'] == club_filter]
+            if tag_filter != "Todas":
+                m_df = m_df[m_df['Tag'] == tag_filter]
+            if search_query:
+                m_df = m_df[m_df['Nome'].str.contains(search_query, case=False, na=False)]
+
+            # Aplicar Ordenação
+            if sort_by == "Maior xP (Projetado)":
+                m_df = m_df.sort_values(by="Media_Ajustada", ascending=False)
+            elif sort_by == "Menor Preço":
+                m_df = m_df.sort_values(by="Preco", ascending=True)
+            elif sort_by == "Maior Preço":
+                m_df = m_df.sort_values(by="Preco", ascending=False)
+            elif sort_by == "Maior Média Histórica":
+                m_df = m_df.sort_values(by="Media", ascending=False)
+            elif sort_by == "Maior Teto (Upside)":
+                m_df = m_df.sort_values(by="Upside", ascending=False)
+
+            st.write(f"Exibindo **{len(m_df)}** atletas encontrados:")
+
+            # Renderizar Grid do Mercado (4 por linha)
+            grid_cols_num = 4
+            m_list = m_df.to_dict('records')
+            for i in range(0, len(m_list), grid_cols_num):
+                row_athletes = m_list[i:i+grid_cols_num]
+                cols = st.columns(len(row_athletes))
+                for idx, ath in enumerate(row_athletes):
+                    with cols[idx]:
+                        render_market_player_card(ath)
+
+        with tab_consult:
+            # 🔍 CONSULTOR TÁTICO & DIAGNÓSTICO ATLETA POR ATLETA
+            st.subheader(f"🔍 Consultor Tático & Diagnóstico do Time (Rodada {rodada_num})")
+            
+            advisor_res = optimizer.analyze_user_lineup(
+                df=df,
+                selected_df=selected_df,
+                captain_id=capitao_row['ID'],
+                budget=budget
+            )
+
+            if advisor_res:
+                # Banner de Veredito Geral
+                st.html(f'''
+                <div style="background:linear-gradient(135deg, #0f172a, #1e293b); border:2px solid {advisor_res['rating_color']}; border-radius:14px; padding:16px 20px; margin-bottom:20px;">
+                    <div style="font-size:1.35rem; font-weight:900; color:{advisor_res['rating_color']}; margin-bottom:4px;">
+                        {advisor_res['rating']}
+                    </div>
+                    <div style="font-size:0.90rem; color:#cbd5e1; margin-bottom:12px;">
+                        {advisor_res['rating_desc']}
+                    </div>
+                    <div style="display:flex; flex-wrap:wrap; gap:10px;">
+                        <span class="consult-badge consult-badge-manter">✅ {advisor_res['manter_count']} Atletas Recomendados</span>
+                        <span class="consult-badge consult-badge-atencao">⚠️ {advisor_res['atencao_count']} Em Atenção / Aposta</span>
+                        <span class="consult-badge consult-badge-trocar">❌ {advisor_res['trocar_count']} Sugestões de Troca</span>
+                    </div>
+                </div>
+                ''')
+
+                if advisor_res['trocar_count'] > 0 and advisor_res['total_gain_potential'] > 0:
+                    st.info(f"💡 **Potencial de Ganho:** Aplicando as substituições recomendadas pelo modelo abaixo, seu time pode ganhar aproximadamente **+{advisor_res['total_gain_potential']:.2f} pts** adicionais sem estourar o orçamento!")
+
+                # Exibição Atleta por Atleta em 2 Colunas
+                starters_list = advisor_res['starters']
+                c_left, c_right = st.columns(2)
+                for idx, s in enumerate(starters_list):
+                    target_col = c_left if idx % 2 == 0 else c_right
+                    with target_col:
+                        render_consult_player_card(s)
+
+                # Ações Finais da Consultoria
+                st.markdown("---")
+                act_col1, act_col2 = st.columns([3, 2])
+                with act_col1:
+                    st.write("🛡️ **Pronto para a rodada?** Salve este time para travar sua escalação oficial e acompanhar parciais ao vivo.")
+                with act_col2:
+                    if st.button(f"💾 SALVAR COMO TIME OFICIAL (R{rodada_num})", type="primary", use_container_width=True, key="btn_save_advisor"):
+                        res_ids = {pos: int(r['ID']) for pos, r in reservas.items()}
+                        best_res_pos_calc = None
+                        max_up = -1.0
+                        for pos, r in reservas.items():
+                            up = r.get('Upside', r.get('Media_Ajustada', 0))
+                            if up > max_up:
+                                max_up = up
+                                best_res_pos_calc = pos
+                                
+                        save_official_team(
+                            rodada=rodada_num,
+                            starters_ids=selected_df['ID'].tolist(),
+                            captain_id=int(capitao_row['ID']),
+                            reserves_ids=res_ids,
+                            super_sub_pos=best_res_pos_calc or "Atacante"
+                        )
+                        st.success(f"✅ Time da Rodada {rodada_num} salvo como Oficial com sucesso!")
+                        st.rerun()
 
         with tab_cards:
             # ATAQUE

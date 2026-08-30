@@ -123,6 +123,24 @@ class Scorer:
             escudo_url = clube_obj.get('escudos', {}).get('60x60', '')
             foto_url = (a.get('foto') or '').replace('FORMATO', '220x220')
 
+            opp_obj = clubes.get(opp_id, {})
+            opp_abrev = opp_obj.get('abreviacao', 'ADV')
+            confronto_str = f"{'vs' if is_home else '@'} {opp_abrev} ({'C' if is_home else 'F'})"
+
+            tag, tag_color, status_cons, justificativa = self._generate_tag_and_justification(
+                posicao=posicao,
+                preco=preco,
+                media_bruta=media_bruta,
+                xp=xp,
+                upside=upside,
+                sg_prob_pct=round(sg_prob * 100, 1),
+                is_home=is_home,
+                opp_abrev=opp_abrev,
+                opp_pos=opp_pos,
+                scout=scout,
+                jogos=jogos
+            )
+
             player_data = {
                 'ID': a.get('atleta_id'),
                 'Nome': a.get('apelido', 'Sem Nome'),
@@ -138,7 +156,14 @@ class Scorer:
                 'SG_Prob': round(sg_prob * 100, 1),
                 'Jogos': jogos,
                 'Foto': foto_url,
-                'Escudo': escudo_url
+                'Escudo': escudo_url,
+                'Confronto': confronto_str,
+                'Is_Home': is_home,
+                'Opp_Abrev': opp_abrev,
+                'Tag': tag,
+                'Tag_Color': tag_color,
+                'Status_Consultoria': status_cons,
+                'Justificativa': justificativa
             }
             
             processed.append(player_data)
@@ -156,6 +181,23 @@ class Scorer:
                     top_players = sorted(club_line_players[c_id], reverse=True)[:11]
                     p['Media_Ajustada'] = round(float(np.mean(top_players)), 2)
                     p['Upside'] = p['Media_Ajustada']
+                    # Atualizar justificativa do técnico com o xP médio final
+                    t_xp = p['Media_Ajustada']
+                    if t_xp >= 6.5:
+                        p['Tag'] = 'Excelente'
+                        p['Tag_Color'] = '#10b981'
+                        p['Status_Consultoria'] = 'MANTER'
+                        p['Justificativa'] = f"Equipe mandante favorita com alta média projetada de titulares ({t_xp:.2f} xP)." if p['Is_Home'] else f"Equipe consistente com ótimo potencial na rodada ({t_xp:.2f} xP)."
+                    elif t_xp >= 5.0:
+                        p['Tag'] = 'Boa Opção'
+                        p['Tag_Color'] = '#f59e0b'
+                        p['Status_Consultoria'] = 'MANTER'
+                        p['Justificativa'] = f"Confronto equilibrado ({p['Confronto']}), pontuação esperada moderada ({t_xp:.2f} xP)."
+                    else:
+                        p['Tag'] = 'Evitar'
+                        p['Tag_Color'] = '#ef4444'
+                        p['Status_Consultoria'] = 'TROCAR'
+                        p['Justificativa'] = f"Confronto desfavorável fora de casa; elenco titular com baixa projeção ({t_xp:.2f} xP)."
         
         df = pd.DataFrame(processed)
         
@@ -271,3 +313,71 @@ class Scorer:
         max_pts = sum(3.0 * w for w in w_slice)
         
         return total_pts / max_pts if max_pts > 0 else 0.45
+
+    def _generate_tag_and_justification(self, posicao, preco, media_bruta, xp, upside, sg_prob_pct, is_home, opp_abrev, opp_pos, scout, jogos):
+        """Gera tag inteligente e justificativa objetiva em texto claro para cada atleta."""
+        loc_str = "Mandante" if is_home else "Visitante"
+        num_j = max(1, jogos)
+        
+        # 1. Defensores (Goleiro, Lateral, Zagueiro)
+        if posicao in ['Goleiro', 'Lateral', 'Zagueiro']:
+            if (sg_prob_pct >= 55.0 and xp >= 6.0) or (xp >= 7.5):
+                tag = "Excelente"
+                tag_color = "#10b981"
+                status_cons = "MANTER"
+                just = f"{loc_str} com alta chance de SG ({sg_prob_pct:.0f}%) contra o {opp_abrev}."
+                if scout.get('DS', 0) / num_j >= 2.0:
+                    just += " Excelente volume de desarmes."
+            elif xp >= 5.0 or (sg_prob_pct >= 45.0 and preco <= 8.5):
+                tag = "Boa Opção"
+                tag_color = "#f59e0b"
+                status_cons = "MANTER"
+                just = f"{loc_str} contra {opp_abrev} ({opp_pos}º); chance moderada de SG ({sg_prob_pct:.0f}%)."
+            elif upside >= 8.5 and preco <= 7.0:
+                tag = "Aposta"
+                tag_color = "#8b5cf6"
+                status_cons = "ATENCAO"
+                just = f"Preço atrativo (C$ {preco:.2f}) e bom teto de pontos ({upside:.2f} pts), com risco de SG ({sg_prob_pct:.0f}%)."
+            else:
+                tag = "Evitar"
+                tag_color = "#ef4444"
+                status_cons = "TROCAR"
+                just = f"{loc_str} com baixa probabilidade de SG ({sg_prob_pct:.0f}%); custo-benefício desfavorável para a rodada."
+
+        # 2. Meias e Atacantes
+        elif posicao in ['Meia', 'Atacante']:
+            if xp >= 7.5 or (xp >= 6.5 and is_home and opp_pos >= 12):
+                tag = "Excelente"
+                tag_color = "#10b981"
+                status_cons = "MANTER"
+                if is_home:
+                    just = f"Mandante contra a defesa vulnerável do {opp_abrev} ({opp_pos}º) com alto potencial ofensivo ({xp:.2f} xP)."
+                else:
+                    just = f"Grande fase individual com média projetada alta ({xp:.2f} xP) e teto de {upside:.2f} pts."
+            elif xp >= 5.5 or (upside >= 9.5 and is_home):
+                tag = "Boa Opção"
+                tag_color = "#f59e0b"
+                status_cons = "MANTER"
+                just = f"Confronto favorável ({'em casa' if is_home else 'fora'}) contra {opp_abrev}; boa regularidade ofensiva."
+            elif upside >= 9.0 and preco <= 8.5:
+                tag = "Aposta"
+                tag_color = "#8b5cf6"
+                status_cons = "ATENCAO"
+                just = f"Jogador agudo com teto elevado ({upside:.2f} pts) e bom preço, mas oscila na pontuação básica."
+            else:
+                tag = "Evitar"
+                tag_color = "#ef4444"
+                status_cons = "TROCAR"
+                if not is_home:
+                    just = f"Visitante contra o {opp_abrev}; projeção baixa ({xp:.2f} xP) para o custo de C$ {preco:.2f}."
+                else:
+                    just = f"Baixo volume de scouts decisivos recentes; retorno projetado insuficiente para o preço."
+
+        # 3. Técnico
+        else:
+            tag = "Boa Opção"
+            tag_color = "#f59e0b"
+            status_cons = "MANTER"
+            just = f"Comanda equipe {loc_str.lower()} em duelo contra {opp_abrev}."
+
+        return tag, tag_color, status_cons, just
