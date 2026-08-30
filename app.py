@@ -10,6 +10,32 @@ from cartola_bot.solver import TeamOptimizer
 from cartola_bot.exporter import Exporter
 from cartola_bot.utils.config_loader import load_config
 
+# Configuração e Atletas do Time Oficial Escalado na Rodada 25 (M1TOS EC)
+OFFICIAL_ROUND = 25
+OFFICIAL_STARTERS_IDS = [
+    91101,   # Ronaldo (BAH) - Goleiro
+    107093,  # Luciano Juba (BAH) - Lateral
+    105531,  # Matheus Bidu (COR) - Lateral
+    91772,   # David Duarte (BAH) - Zagueiro
+    123445,  # Dantas (CAP) - Zagueiro
+    117632,  # Garro (COR) - Meia
+    87747,   # Yago Felipe (CHA) - Meia
+    104783,  # Acevedo (BAH) - Meia
+    143193,  # Viveros (CAP) - Atacante [Capitão]
+    118844,  # Kaio César (COR) - Atacante
+    113103,  # Flaco López (PAL) - Atacante
+    97341    # Rogério Ceni (BAH) - Técnico
+]
+OFFICIAL_CAPTAIN_ID = 143193  # Viveros (CAP)
+OFFICIAL_RESERVES_IDS = {
+    'Goleiro': 71631,    # Weverton (GRE)
+    'Lateral': 91706,    # Marlon (GRE)
+    'Zagueiro': 130307,  # Wallace (GRE)
+    'Meia': 84626,       # Josué (CFC)
+    'Atacante': 114208   # Alejo Véliz (BAH) [Reserva de Luxo]
+}
+OFFICIAL_SUPER_SUB_POS = 'Atacante'
+
 # Configuração da página para máxima responsividade
 st.set_page_config(
     page_title="Cartola FC Optimizer Pro",
@@ -502,46 +528,62 @@ def main():
         </div>
         ''')
         
+        # Seção 1: Modo de Operação
+        st.html('<div class="sidebar-section">📌 MODO DE OPERAÇÃO</div>')
+        app_mode = st.radio(
+            "Modo Selecionado:",
+            options=["oficial", "simulador"],
+            format_func=lambda x: "🛡️ Time Oficial Escalado (Rodada 25)" if x == "oficial" else "🤖 Simulador / Novo Time",
+            index=0,
+            help="O modo 'Time Oficial' fixa a escalação real que você colocou no Cartola FC para acompanhar as parciais ao vivo. O modo 'Simulador' permite rodar o otimizador com novos valores e formações."
+        )
+
         config_preview = load_config()
         default_budget = float(config_preview.get('defaults', {}).get('budget', 146.07))
-        
-        # Seção 1: Cofre
-        st.html('<div class="sidebar-section">💰 PATRIMÔNIO DISPONÍVEL</div>')
-        budget = st.number_input(
-            "Saldo em Cartoletas (C$):",
-            min_value=50.0,
-            max_value=400.0,
-            value=default_budget,
-            step=1.0,
-            format="%.2f",
-            help="Total de cartoletas disponíveis para escalar o time titular do M1TOS EC."
-        )
-        
-        # Seção 2: Estratégia Tática
-        st.html('<div class="sidebar-section">📋 ESTRATÉGIA TÁTICA</div>')
-        available_formations = ["auto"] + list(config_preview.get('formations', {}).keys())
-        formation_option = st.selectbox(
-            "Esquema Tático:",
-            options=available_formations,
-            format_func=lambda x: "⭐ Automática (Melhor Formação)" if x == "auto" else f"Formação {x}",
-            index=0,
-            help="A opção Automática testa todas as 5 formações e escolhe a que projeta a maior pontuação global."
-        )
-        
-        max_per_club = st.slider(
-            "Máx. Jogadores por Clube:",
-            min_value=2,
-            max_value=7,
-            value=5,
-            help="Limite de segurança para evitar dependência excessiva de uma única equipe."
-        )
-        
-        # Seção 3: Conexão com a API
+
+        if app_mode == "simulador":
+            # Seção 2: Cofre
+            st.html('<div class="sidebar-section">💰 PATRIMÔNIO DISPONÍVEL</div>')
+            budget = st.number_input(
+                "Saldo em Cartoletas (C$):",
+                min_value=50.0,
+                max_value=400.0,
+                value=default_budget,
+                step=1.0,
+                format="%.2f",
+                help="Total de cartoletas disponíveis para escalar o time titular do M1TOS EC."
+            )
+            
+            # Seção 3: Estratégia Tática
+            st.html('<div class="sidebar-section">📋 ESTRATÉGIA TÁTICA</div>')
+            available_formations = ["auto"] + list(config_preview.get('formations', {}).keys())
+            formation_option = st.selectbox(
+                "Esquema Tático:",
+                options=available_formations,
+                format_func=lambda x: "⭐ Automática (Melhor Formação)" if x == "auto" else f"Formação {x}",
+                index=0,
+                help="A opção Automática testa todas as 5 formações e escolhe a que projeta a maior pontuação global."
+            )
+            
+            max_per_club = st.slider(
+                "Máx. Jogadores por Clube:",
+                min_value=2,
+                max_value=7,
+                value=5,
+                help="Limite de segurança para evitar dependência excessiva de uma única equipe."
+            )
+        else:
+            budget = default_budget
+            formation_option = "4-3-3"
+            max_per_club = 5
+
+        # Conexão com a API
         st.html('<div class="sidebar-section">🔄 ATUALIZAÇÃO DA API</div>')
         force_refresh = st.checkbox("Forçar atualização ao vivo da Globo", value=False)
         
-        st.markdown("")
-        run_button = st.button("🚀 ESCALAR M1TOS EC", type="primary", use_container_width=True)
+        if app_mode == "simulador":
+            st.markdown("")
+            run_button = st.button("🚀 OTIMIZAR NOVO TIME", type="primary", use_container_width=True)
         
         # Placeholder para o botão de exportação na Sidebar
         export_sidebar_placeholder = st.sidebar.empty()
@@ -562,32 +604,51 @@ def main():
         exporter = Exporter()
         
         rodada_num = partidas_data.get('rodada', '?')
-        st.info(f"🏆 **Rodada {rodada_num} do Brasileirão** analisada com sucesso!")
+        target_ids = OFFICIAL_STARTERS_IDS + list(OFFICIAL_RESERVES_IDS.values())
         
-        with st.spinner("Calculando a melhor combinação matemática..."):
-            df = scorer.process_data(mercado_data, partidas_data)
+        with st.spinner("Processando dados dos atletas e confrontos..."):
+            df = scorer.process_data(mercado_data, partidas_data, target_athlete_ids=target_ids)
             
             if df.empty:
-                st.error("Nenhum atleta provável disponível para otimização.")
+                st.error("Nenhum atleta disponível para processamento.")
                 return
                 
             all_formations_summary = None
-            if formation_option == "auto":
-                chosen_formation, selected_df, best_score, all_formations_summary = optimizer.optimize_best_formation(
-                    df, budget=budget, max_players_per_club=max_per_club
-                )
+            
+            if app_mode == "oficial":
+                st.success(f"🛡️ **Time Oficial do M1TOS EC Fixado (Rodada {rodada_num})** — Acompanhamento ao vivo sincronizado com a Globo.")
+                chosen_formation = "4-3-3"
+                selected_df = df[df['ID'].isin(OFFICIAL_STARTERS_IDS)].copy()
+                selected_df['Is_Capitao'] = (selected_df['ID'] == OFFICIAL_CAPTAIN_ID)
+                
+                # Montar reservas oficiais
+                reservas = {}
+                for pos, r_id in OFFICIAL_RESERVES_IDS.items():
+                    r_sub = df[df['ID'] == r_id]
+                    if not r_sub.empty:
+                        r_series = r_sub.iloc[0].copy()
+                        worst_starter_xp = selected_df[selected_df['Posicao'] == pos]['Media_Ajustada'].min() if not selected_df[selected_df['Posicao'] == pos].empty else 0
+                        r_series['Worst_Starter_XP'] = worst_starter_xp
+                        r_series['Expected_Gain'] = round(max(0.0, (r_series.get('Upside', r_series.get('Media_Ajustada', 0)) - worst_starter_xp) * 0.4), 2)
+                        reservas[pos] = r_series
             else:
-                chosen_formation = formation_option
-                selected_df = optimizer.optimize(
-                    df, budget=budget, formation_name=chosen_formation, max_players_per_club=max_per_club
-                )
+                st.info(f"🏆 **Rodada {rodada_num} do Brasileirão** analisada no modo Simulador!")
+                if formation_option == "auto":
+                    chosen_formation, selected_df, best_score, all_formations_summary = optimizer.optimize_best_formation(
+                        df, budget=budget, max_players_per_club=max_per_club
+                    )
+                else:
+                    chosen_formation = formation_option
+                    selected_df = optimizer.optimize(
+                        df, budget=budget, formation_name=chosen_formation, max_players_per_club=max_per_club
+                    )
 
-        if selected_df is None or selected_df.empty:
-            st.error("Não foi possível montar um time completo com esse orçamento. Tente aumentar o valor em cartoletas.")
-            return
+                if selected_df is None or selected_df.empty:
+                    st.error("Não foi possível montar um time completo com esse orçamento. Tente aumentar o valor em cartoletas.")
+                    return
 
-        reservas = optimizer.get_reservas(df, selected_df)
-        
+                reservas = optimizer.get_reservas(df, selected_df)
+
         capitao_row = selected_df[selected_df['Is_Capitao']].iloc[0] if 'Is_Capitao' in selected_df.columns and selected_df['Is_Capitao'].any() else selected_df.iloc[0]
         capitao_nome = capitao_row['Nome']
         capitao_extra = capitao_row['Media_Ajustada'] * 0.5

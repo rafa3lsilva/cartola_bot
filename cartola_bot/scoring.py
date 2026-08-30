@@ -7,7 +7,7 @@ class Scorer:
         self.config = config['scoring']
         self.defaults = config['defaults']
 
-    def process_data(self, mercado_data, partidas_data):
+    def process_data(self, mercado_data, partidas_data, target_athlete_ids=None):
         """Processa os dados brutos e calcula o xP com Fator Momento e Matriz de Cedência de Scouts."""
         atletas = mercado_data.get('atletas', [])
         clubes = mercado_data.get('clubes', {})
@@ -26,9 +26,12 @@ class Scorer:
         
         processed = []
         club_line_players = {}
+        target_ids_set = {int(x) for x in target_athlete_ids} if target_athlete_ids else set()
         
         for a in atletas:
-            if a.get('status_id') != 7: # Apenas prováveis
+            a_id = a.get('atleta_id')
+            is_target = a_id in target_ids_set
+            if a.get('status_id') != 7 and not is_target: # Apenas prováveis ou alvos fixados
                 continue
                 
             pos_id = str(a.get('posicao_id', ''))
@@ -157,7 +160,10 @@ class Scorer:
         df = pd.DataFrame(processed)
         
         if not df.empty and df['Jogos'].max() > self.defaults['min_games_threshold']:
-            df = df[df['Jogos'] >= self.defaults['min_games']].copy()
+            if target_athlete_ids:
+                df = df[(df['Jogos'] >= self.defaults['min_games']) | (df['ID'].isin(target_ids_set))].copy()
+            else:
+                df = df[df['Jogos'] >= self.defaults['min_games']].copy()
             
         return df
 
