@@ -10,31 +10,38 @@ from cartola_bot.solver import TeamOptimizer
 from cartola_bot.exporter import Exporter
 from cartola_bot.utils.config_loader import load_config
 
-# Configuração e Atletas do Time Oficial Escalado na Rodada 25 (M1TOS EC)
-OFFICIAL_ROUND = 25
-OFFICIAL_STARTERS_IDS = [
-    91101,   # Ronaldo (BAH) - Goleiro
-    107093,  # Luciano Juba (BAH) - Lateral
-    105531,  # Matheus Bidu (COR) - Lateral
-    91772,   # David Duarte (BAH) - Zagueiro
-    123445,  # Dantas (CAP) - Zagueiro
-    117632,  # Garro (COR) - Meia
-    87747,   # Yago Felipe (CHA) - Meia
-    104783,  # Acevedo (BAH) - Meia
-    143193,  # Viveros (CAP) - Atacante [Capitão]
-    118844,  # Kaio César (COR) - Atacante
-    113103,  # Flaco López (PAL) - Atacante
-    97341    # Rogério Ceni (BAH) - Técnico
-]
-OFFICIAL_CAPTAIN_ID = 143193  # Viveros (CAP)
-OFFICIAL_RESERVES_IDS = {
-    'Goleiro': 71631,    # Weverton (GRE)
-    'Lateral': 91706,    # Marlon (GRE)
-    'Zagueiro': 130307,  # Wallace (GRE)
-    'Meia': 84626,       # Josué (CFC)
-    'Atacante': 114208   # Alejo Véliz (BAH) [Reserva de Luxo]
-}
-OFFICIAL_SUPER_SUB_POS = 'Atacante'
+# Arquivo de persistência da escalação oficial
+OFFICIAL_FILE = "time_oficial_ativo.json"
+
+def load_official_team():
+    """Carrega os dados do time oficial escalado a partir do arquivo JSON."""
+    if os.path.exists(OFFICIAL_FILE):
+        try:
+            with open(OFFICIAL_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {
+        "rodada": 25,
+        "starters_ids": [91101, 107093, 105531, 91772, 123445, 117632, 87747, 104783, 143193, 118844, 113103, 97341],
+        "captain_id": 143193,
+        "reserves_ids": {'Goleiro': 71631, 'Lateral': 91706, 'Zagueiro': 130307, 'Meia': 84626, 'Atacante': 114208},
+        "super_sub_pos": "Atacante"
+    }
+
+def save_official_team(rodada, starters_ids, captain_id, reserves_ids, super_sub_pos="Atacante"):
+    """Salva a escalação oficial como time ativo no arquivo JSON."""
+    data = {
+        "rodada": int(rodada),
+        "updated_at": datetime.now().isoformat(),
+        "starters_ids": [int(i) for i in starters_ids],
+        "captain_id": int(captain_id),
+        "reserves_ids": {pos: int(r_id) for pos, r_id in reserves_ids.items()},
+        "super_sub_pos": super_sub_pos
+    }
+    with open(OFFICIAL_FILE, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    return data
 
 # Configuração da página para máxima responsividade
 st.set_page_config(
@@ -517,6 +524,9 @@ def render_live_player_card(p, pinfo=None, is_captain=False, is_super_sub=False)
 def main():
     st.html('<div class="main-header">🛡️ M1TOS EC • Cartola Pro</div><div class="sub-header">Otimizador Tático Inteligente com Pontuação Esperada (xP) & Reserva de Luxo</div>')
 
+    official_data = load_official_team()
+    official_round = official_data.get('rodada', 25)
+
     with st.sidebar:
         # Card do Perfil do Time M1TOS EC
         st.html('''
@@ -528,14 +538,14 @@ def main():
         </div>
         ''')
         
-        # Seção 1: Modo de Operação
+        # Seção 1: Modo de Operação com Rodada Dinâmica
         st.html('<div class="sidebar-section">📌 MODO DE OPERAÇÃO</div>')
         app_mode = st.radio(
             "Modo Selecionado:",
             options=["oficial", "simulador"],
-            format_func=lambda x: "🛡️ Time Oficial Escalado (Rodada 25)" if x == "oficial" else "🤖 Simulador / Novo Time",
+            format_func=lambda x: f"🛡️ Time Oficial Escalado (Rodada {official_round})" if x == "oficial" else "🤖 Simulador / Novo Time",
             index=0,
-            help="O modo 'Time Oficial' fixa a escalação real que você colocou no Cartola FC para acompanhar as parciais ao vivo. O modo 'Simulador' permite rodar o otimizador com novos valores e formações."
+            help=f"O modo 'Time Oficial' fixa a escalação real salva para a Rodada {official_round}. O modo 'Simulador' permite rodar o otimizador com novos valores e formações para qualquer rodada."
         )
 
         config_preview = load_config()
@@ -604,7 +614,12 @@ def main():
         exporter = Exporter()
         
         rodada_num = partidas_data.get('rodada', '?')
-        target_ids = OFFICIAL_STARTERS_IDS + list(OFFICIAL_RESERVES_IDS.values())
+        official_starters_ids = official_data.get('starters_ids', [])
+        official_captain_id = official_data.get('captain_id', 0)
+        official_reserves_ids = official_data.get('reserves_ids', {})
+        official_super_sub_pos = official_data.get('super_sub_pos', 'Atacante')
+        
+        target_ids = official_starters_ids + list(official_reserves_ids.values())
         
         with st.spinner("Processando dados dos atletas e confrontos..."):
             df = scorer.process_data(mercado_data, partidas_data, target_athlete_ids=target_ids)
@@ -616,14 +631,18 @@ def main():
             all_formations_summary = None
             
             if app_mode == "oficial":
-                st.success(f"🛡️ **Time Oficial do M1TOS EC Fixado (Rodada {rodada_num})** — Acompanhamento ao vivo sincronizado com a Globo.")
+                if str(rodada_num) != str(official_round) and rodada_num != '?':
+                    st.warning(f"🔔 A Globo já abriu a **Rodada {rodada_num}**! Você está visualizando o time oficial salvo da **Rodada {official_round}**. Acesse o modo **Simulador** para escalar e salvar o time da Rodada {rodada_num}!")
+                else:
+                    st.success(f"🛡️ **Time Oficial do M1TOS EC Fixado (Rodada {official_round})** — Acompanhamento ao vivo sincronizado com a Globo.")
+                    
                 chosen_formation = "4-3-3"
-                selected_df = df[df['ID'].isin(OFFICIAL_STARTERS_IDS)].copy()
-                selected_df['Is_Capitao'] = (selected_df['ID'] == OFFICIAL_CAPTAIN_ID)
+                selected_df = df[df['ID'].isin(official_starters_ids)].copy()
+                selected_df['Is_Capitao'] = (selected_df['ID'] == official_captain_id)
                 
                 # Montar reservas oficiais
                 reservas = {}
-                for pos, r_id in OFFICIAL_RESERVES_IDS.items():
+                for pos, r_id in official_reserves_ids.items():
                     r_sub = df[df['ID'] == r_id]
                     if not r_sub.empty:
                         r_series = r_sub.iloc[0].copy()
@@ -666,6 +685,36 @@ def main():
             st.html(f'<div class="metric-card"><div class="metric-title">🏦 Sobra no Caixa</div><div class="metric-value">C$ {budget_left:.2f}</div></div>')
         with c4:
             st.html(f'<div class="metric-card"><div class="metric-title">📋 Formação Tática</div><div class="metric-value">{chosen_formation}</div></div>')
+
+        # Banner de Salvamento no Modo Simulador
+        if app_mode == "simulador" and selected_df is not None and not selected_df.empty:
+            st.markdown("---")
+            col_save1, col_save2 = st.columns([3, 2])
+            with col_save1:
+                st.info(f"💡 Gostou desta escalação para a **Rodada {rodada_num}**? Salve-a como seu **Time Oficial** para acompanhar as parciais ao vivo!")
+            with col_save2:
+                if st.button(f"💾 SALVAR COMO TIME OFICIAL (R{rodada_num})", type="primary", use_container_width=True):
+                    cap_r = selected_df[selected_df['Is_Capitao']].iloc[0] if 'Is_Capitao' in selected_df.columns and selected_df['Is_Capitao'].any() else selected_df.iloc[0]
+                    cap_id = int(cap_r['ID'])
+                    res_ids = {pos: int(r['ID']) for pos, r in reservas.items()}
+                    
+                    best_res_pos_calc = None
+                    max_up = -1.0
+                    for pos, r in reservas.items():
+                        up = r.get('Upside', r.get('Media_Ajustada', 0))
+                        if up > max_up:
+                            max_up = up
+                            best_res_pos_calc = pos
+                            
+                    save_official_team(
+                        rodada=rodada_num,
+                        starters_ids=selected_df['ID'].tolist(),
+                        captain_id=cap_id,
+                        reserves_ids=res_ids,
+                        super_sub_pos=best_res_pos_calc or "Atacante"
+                    )
+                    st.success(f"✅ Time da Rodada {rodada_num} salvo como Oficial com sucesso!")
+                    st.rerun()
 
         # 2. Alternador de Visualização (Cards vs Parciais vs Tabela)
         tab_cards, tab_live, tab_table, tab_comp = st.tabs([

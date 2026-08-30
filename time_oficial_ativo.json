@@ -1,0 +1,27 @@
+{
+  "rodada": 25,
+  "updated_at": "2026-08-30T15:45:00",
+  "starters_ids": [
+    91101,
+    107093,
+    105531,
+    91772,
+    123445,
+    117632,
+    87747,
+    104783,
+    143193,
+    118844,
+    113103,
+    97341
+  ],
+  "captain_id": 143193,
+  "reserves_ids": {
+    "Goleiro": 71631,
+    "Lateral": 91706,
+    "Zagueiro": 130307,
+    "Meia": 84626,
+    "Atacante": 114208
+  },
+  "super_sub_pos": "Atacante"
+}
