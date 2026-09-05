@@ -1,27 +1,189 @@
 {
   "rodada": 25,
-  "updated_at": "2026-08-30T15:45:00",
-  "starters_ids": [
-    91101,
-    107093,
-    105531,
-    91772,
-    123445,
-    117632,
-    87747,
-    104783,
-    143193,
-    118844,
-    113103,
-    97341
-  ],
+  "saved_at": "2026-08-29T18:12:00",
+  "total_cost": 124.64,
+  "total_xp_projected": 99.69,
   "captain_id": 143193,
-  "reserves_ids": {
-    "Goleiro": 71631,
-    "Lateral": 91706,
-    "Zagueiro": 130307,
-    "Meia": 84626,
-    "Atacante": 114208
-  },
-  "super_sub_pos": "Atacante"
+  "super_sub_pos": "Atacante",
+  "starters": [
+    {
+      "ID": 91101,
+      "Nome": "Ronaldo",
+      "Posicao": "Goleiro",
+      "Clube": "BAH",
+      "Preco": 8.53,
+      "Media_Ajustada": 7.39,
+      "SG_Prob": 63.0,
+      "Confronto": "vs INT (C)",
+      "Is_Capitao": false
+    },
+    {
+      "ID": 107093,
+      "Nome": "Luciano Juba",
+      "Posicao": "Lateral",
+      "Clube": "BAH",
+      "Preco": 11.99,
+      "Media_Ajustada": 8.73,
+      "SG_Prob": 63.0,
+      "Confronto": "vs INT (C)",
+      "Is_Capitao": false
+    },
+    {
+      "ID": 105531,
+      "Nome": "Matheus Bidu",
+      "Posicao": "Lateral",
+      "Clube": "COR",
+      "Preco": 12.32,
+      "Media_Ajustada": 8.0,
+      "SG_Prob": 50.0,
+      "Confronto": "vs SAN (C)",
+      "Is_Capitao": false
+    },
+    {
+      "ID": 91772,
+      "Nome": "David Duarte",
+      "Posicao": "Zagueiro",
+      "Clube": "BAH",
+      "Preco": 6.97,
+      "Media_Ajustada": 7.01,
+      "SG_Prob": 63.0,
+      "Confronto": "vs INT (C)",
+      "Is_Capitao": false
+    },
+    {
+      "ID": 123445,
+      "Nome": "Dantas",
+      "Posicao": "Zagueiro",
+      "Clube": "CAP",
+      "Preco": 5.88,
+      "Media_Ajustada": 6.07,
+      "SG_Prob": 48.0,
+      "Confronto": "vs FLU (C)",
+      "Is_Capitao": false
+    },
+    {
+      "ID": 117632,
+      "Nome": "Garro",
+      "Posicao": "Meia",
+      "Clube": "COR",
+      "Preco": 11.23,
+      "Media_Ajustada": 7.92,
+      "SG_Prob": null,
+      "Confronto": "vs SAN (C)",
+      "Is_Capitao": false
+    },
+    {
+      "ID": 87747,
+      "Nome": "Yago Felipe",
+      "Posicao": "Meia",
+      "Clube": "CHA",
+      "Preco": 9.11,
+      "Media_Ajustada": 8.12,
+      "SG_Prob": null,
+      "Confronto": "@ GRE (F)",
+      "Is_Capitao": false
+    },
+    {
+      "ID": 104783,
+      "Nome": "Acevedo",
+      "Posicao": "Meia",
+      "Clube": "BAH",
+      "Preco": 7.51,
+      "Media_Ajustada": 7.27,
+      "SG_Prob": null,
+      "Confronto": "vs INT (C)",
+      "Is_Capitao": false
+    },
+    {
+      "ID": 143193,
+      "Nome": "Viveros",
+      "Posicao": "Atacante",
+      "Clube": "CAP",
+      "Preco": 14.28,
+      "Media_Ajustada": 10.45,
+      "SG_Prob": null,
+      "Confronto": "vs FLU (C)",
+      "Is_Capitao": true
+    },
+    {
+      "ID": 118844,
+      "Nome": "Kaio César",
+      "Posicao": "Atacante",
+      "Clube": "COR",
+      "Preco": 9.91,
+      "Media_Ajustada": 8.54,
+      "SG_Prob": null,
+      "Confronto": "vs SAN (C)",
+      "Is_Capitao": false
+    },
+    {
+      "ID": 113103,
+      "Nome": "Flaco López",
+      "Posicao": "Atacante",
+      "Clube": "PAL",
+      "Preco": 15.87,
+      "Media_Ajustada": 8.13,
+      "SG_Prob": null,
+      "Confronto": "@ MIR (F)",
+      "Is_Capitao": false
+    },
+    {
+      "ID": 97341,
+      "Nome": "Rogério Ceni",
+      "Posicao": "Técnico",
+      "Clube": "BAH",
+      "Preco": 11.04,
+      "Media_Ajustada": 6.83,
+      "SG_Prob": null,
+      "Confronto": "vs INT (C)",
+      "Is_Capitao": false
+    }
+  ],
+  "reserves": {
+    "Goleiro": {
+      "ID": 71631,
+      "Nome": "Weverton",
+      "Clube": "GRE",
+      "Posicao": "Goleiro",
+      "Preco": 7.18,
+      "Media_Ajustada": 6.35,
+      "Is_Super_Sub": false
+    },
+    "Lateral": {
+      "ID": 91706,
+      "Nome": "Marlon",
+      "Clube": "GRE",
+      "Posicao": "Lateral",
+      "Preco": 8.29,
+      "Media_Ajustada": 7.03,
+      "Is_Super_Sub": false
+    },
+    "Zagueiro": {
+      "ID": 130307,
+      "Nome": "Wallace",
+      "Clube": "GRE",
+      "Posicao": "Zagueiro",
+      "Preco": 4.81,
+      "Media_Ajustada": 4.8,
+      "Is_Super_Sub": false
+    },
+    "Meia": {
+      "ID": 84626,
+      "Nome": "Josué",
+      "Clube": "CFC",
+      "Posicao": "Meia",
+      "Preco": 5.98,
+      "Media_Ajustada": 5.98,
+      "Is_Super_Sub": false
+    },
+    "Atacante": {
+      "ID": 114208,
+      "Nome": "Alejo Véliz",
+      "Clube": "BAH",
+      "Posicao": "Atacante",
+      "Preco": 6.97,
+      "Media_Ajustada": 6.97,
+      "Is_Super_Sub": true
+    }
+  }
 }
