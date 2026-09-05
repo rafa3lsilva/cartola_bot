@@ -1182,7 +1182,11 @@ def main():
             with col_l2:
                 refresh_live = st.button("🔄 Atualizar Parciais", use_container_width=True)
 
-            pontuados_data = api.get_pontuados(rodada=active_round if active_round and active_round != '?' else None)
+            try:
+                pontuados_data = api.get_pontuados(active_round if active_round and active_round != '?' else None)
+            except Exception:
+                pontuados_data = api.get_pontuados()
+
             pontuados = pontuados_data.get('atletas', {})
             total_pontuados_count = len(pontuados)
 

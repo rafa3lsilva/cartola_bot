@@ -63,9 +63,14 @@ class CartolaAPI:
         url = self.config.get('partidas_url', "https://api.cartola.globo.com/partidas")
         return self._fetch(url, "partidas", use_cache)
 
-    def get_pontuados(self, rodada=None):
+    def get_pontuados(self, rodada=None, *args, **kwargs):
         """Obtém as pontuações e scouts em tempo real dos atletas na rodada (ou de uma rodada histórica)."""
-        if rodada is not None:
+        if rodada is None and 'rodada' in kwargs:
+            rodada = kwargs.get('rodada')
+        elif rodada is None and len(args) > 0:
+            rodada = args[0]
+            
+        if rodada is not None and str(rodada) != '?':
             url = f"https://api.cartola.globo.com/atletas/pontuados/{rodada}"
             cache_key = f"pontuados_{rodada}"
         else:
