@@ -10,11 +10,20 @@ from cartola_bot.solver import TeamOptimizer
 from cartola_bot.exporter import Exporter
 from cartola_bot.utils.config_loader import load_config
 
-# Arquivo de persistência da escalação oficial
+# Arquivo de persistência da escalação oficial e histórico
 OFFICIAL_FILE = "time_oficial_ativo.json"
+HISTORICO_DIR = "historico"
 
-def load_official_team():
-    """Carrega os dados do time oficial escalado a partir do arquivo JSON."""
+def load_official_team(rodada=None):
+    """Carrega os dados do time oficial escalado a partir do arquivo JSON ou histórico."""
+    if rodada is not None:
+        hist_path = os.path.join(HISTORICO_DIR, f"rodada_{rodada}.json")
+        if os.path.exists(hist_path):
+            try:
+                with open(hist_path, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except Exception:
+                pass
     if os.path.exists(OFFICIAL_FILE):
         try:
             with open(OFFICIAL_FILE, 'r', encoding='utf-8') as f:
@@ -29,18 +38,91 @@ def load_official_team():
         "super_sub_pos": "Atacante"
     }
 
-def save_official_team(rodada, starters_ids, captain_id, reserves_ids, super_sub_pos="Atacante"):
-    """Salva a escalação oficial como time ativo no arquivo JSON."""
+def get_saved_rounds():
+    """Retorna lista de todas as rodadas salvas no histórico."""
+    os.makedirs(HISTORICO_DIR, exist_ok=True)
+    rounds = set()
+    if os.path.exists(OFFICIAL_FILE):
+        try:
+            with open(OFFICIAL_FILE, 'r', encoding='utf-8') as f:
+                d = json.load(f)
+                if 'rodada' in d:
+                    rounds.add(int(d['rodada']))
+        except Exception:
+            pass
+    for f in os.listdir(HISTORICO_DIR):
+        if f.startswith("rodada_") and f.endswith(".json"):
+            try:
+                r_num = int(f.replace("rodada_", "").replace(".json", ""))
+                rounds.add(r_num)
+            except Exception:
+                pass
+    return sorted(list(rounds), reverse=True)
+
+def save_official_team(rodada, starters_df, captain_id, reserves_dict, super_sub_pos="Atacante"):
+    """Salva um snapshot completo e imutável da escalação oficial."""
+    os.makedirs(HISTORICO_DIR, exist_ok=True)
+    
+    starters_list = []
+    for _, row in starters_df.iterrows():
+        p_id = int(row['ID'])
+        is_cap = (p_id == int(captain_id))
+        starters_list.append({
+            'ID': p_id,
+            'Nome': str(row['Nome']),
+            'Posicao': str(row['Posicao']),
+            'Clube': str(row['Clube']),
+            'Preco': float(row['Preco']),
+            'Media_Ajustada': float(row['Media_Ajustada']),
+            'Upside': float(row.get('Upside', row['Media_Ajustada'])),
+            'SG_Prob': float(row['SG_Prob']) if pd.notna(row.get('SG_Prob')) else None,
+            'Confronto': str(row.get('Confronto', '')),
+            'Is_Capitao': is_cap,
+            'Foto': str(row.get('Foto', '')),
+            'Escudo': str(row.get('Escudo', ''))
+        })
+
+    reserves_data = {}
+    for pos, r in reserves_dict.items():
+        is_super = (pos == super_sub_pos)
+        reserves_data[pos] = {
+            'ID': int(r['ID']),
+            'Nome': str(r['Nome']),
+            'Posicao': str(r['Posicao']),
+            'Clube': str(r['Clube']),
+            'Preco': float(r['Preco']),
+            'Media_Ajustada': float(r.get('Media_Ajustada', 0.0)),
+            'Upside': float(r.get('Upside', r.get('Media_Ajustada', 0.0))),
+            'Is_Super_Sub': is_super,
+            'Foto': str(r.get('Foto', '')),
+            'Escudo': str(r.get('Escudo', ''))
+        }
+
+    total_cost = float(starters_df['Preco'].sum())
+    cap_bonus = float(starters_df[starters_df['ID'] == int(captain_id)]['Media_Ajustada'].iloc[0] * 0.5) if not starters_df[starters_df['ID'] == int(captain_id)].empty else 0.0
+    total_xp = round(float(starters_df['Media_Ajustada'].sum() + cap_bonus), 2)
+
     data = {
         "rodada": int(rodada),
-        "updated_at": datetime.now().isoformat(),
-        "starters_ids": [int(i) for i in starters_ids],
+        "saved_at": datetime.now().isoformat(),
+        "total_cost": total_cost,
+        "total_xp_projected": total_xp,
         "captain_id": int(captain_id),
-        "reserves_ids": {pos: int(r_id) for pos, r_id in reserves_ids.items()},
-        "super_sub_pos": super_sub_pos
+        "super_sub_pos": super_sub_pos,
+        "starters_ids": [int(i) for i in starters_df['ID'].tolist()],
+        "reserves_ids": {pos: int(r['ID']) for pos, r in reserves_dict.items()},
+        "starters": starters_list,
+        "reserves": reserves_data
     }
+
+    # Salvar no arquivo oficial ativo e no histórico permanente da rodada
     with open(OFFICIAL_FILE, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
+        
+    hist_file = os.path.join(HISTORICO_DIR, f"rodada_{rodada}.json")
+    with open(hist_file, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+        
     return data
 
 # Configuração da página para máxima responsividade
@@ -717,6 +799,7 @@ def render_live_player_card(p, pinfo=None, is_captain=False, is_super_sub=False)
 def main():
     st.html('<div class="main-header">🛡️ M1TOS EC • Cartola Pro</div><div class="sub-header">Otimizador Tático Inteligente com Pontuação Esperada (xP) & Reserva de Luxo</div>')
 
+    saved_rounds = get_saved_rounds()
     official_data = load_official_team()
     official_round = official_data.get('rodada', 25)
 
@@ -731,15 +814,21 @@ def main():
         </div>
         ''')
         
-        # Seção 1: Modo de Operação com Rodada Dinâmica
+        # Seção 1: Modo de Operação com Rodada Dinâmica e Histórico
         st.html('<div class="sidebar-section">📌 MODO DE OPERAÇÃO</div>')
         app_mode = st.radio(
             "Modo Selecionado:",
             options=["oficial", "simulador"],
-            format_func=lambda x: f"🛡️ Time Oficial Escalado (Rodada {official_round})" if x == "oficial" else "🤖 Simulador / Novo Time",
+            format_func=lambda x: f"🛡️ Time Oficial Salvo (Rodada {official_round})" if x == "oficial" else "🤖 Simulador / Novo Time",
             index=0,
-            help=f"O modo 'Time Oficial' fixa a escalação real salva para a Rodada {official_round}. O modo 'Simulador' permite rodar o otimizador com novos valores e formações para qualquer rodada."
+            help=f"O modo 'Time Oficial' fixa a escalação real e imutável da Rodada {official_round}. O modo 'Simulador' permite rodar o otimizador para qualquer rodada ativa."
         )
+
+        if len(saved_rounds) > 1 and app_mode == "oficial":
+            selected_history_round = st.selectbox("Consultar Rodada Histórica:", saved_rounds, index=0)
+            if selected_history_round != official_round:
+                official_data = load_official_team(rodada=selected_history_round)
+                official_round = selected_history_round
 
         config_preview = load_config()
         default_budget = float(config_preview.get('defaults', {}).get('budget', 146.07))
@@ -776,7 +865,7 @@ def main():
                 help="Limite de segurança para evitar dependência excessiva de uma única equipe."
             )
         else:
-            budget = default_budget
+            budget = float(official_data.get('total_cost', default_budget))
             formation_option = "4-3-3"
             max_per_club = 5
 
@@ -825,24 +914,28 @@ def main():
             
             if app_mode == "oficial":
                 if str(rodada_num) != str(official_round) and rodada_num != '?':
-                    st.warning(f"🔔 A Globo já abriu a **Rodada {rodada_num}**! Você está visualizando o time oficial salvo da **Rodada {official_round}**. Acesse o modo **Simulador** para escalar e salvar o time da Rodada {rodada_num}!")
+                    st.info(f"📜 **Histórico / Time Oficial (Rodada {official_round})** — A Globo já abriu a **Rodada {rodada_num}**. Acesse o **Simulador** quando quiser escalar o novo time!")
                 else:
                     st.success(f"🛡️ **Time Oficial do M1TOS EC (Rodada {official_round})** — Acompanhamento ao vivo sincronizado com a Globo.")
                     
                 chosen_formation = "4-3-3"
-                selected_df = df[df['ID'].isin(official_starters_ids)].copy()
-                selected_df['Is_Capitao'] = (selected_df['ID'] == official_captain_id)
                 
-                # Montar reservas oficiais
-                reservas = {}
-                for pos, r_id in official_reserves_ids.items():
-                    r_sub = df[df['ID'] == r_id]
-                    if not r_sub.empty:
-                        r_series = r_sub.iloc[0].copy()
-                        worst_starter_xp = selected_df[selected_df['Posicao'] == pos]['Media_Ajustada'].min() if not selected_df[selected_df['Posicao'] == pos].empty else 0
-                        r_series['Worst_Starter_XP'] = worst_starter_xp
-                        r_series['Expected_Gain'] = round(max(0.0, (r_series.get('Upside', r_series.get('Media_Ajustada', 0)) - worst_starter_xp) * 0.4), 2)
-                        reservas[pos] = r_series
+                # Se houver snapshot congelado com preços e xP originais, usa diretamente
+                if official_data.get('starters'):
+                    selected_df = pd.DataFrame(official_data['starters'])
+                    reservas = {pos: pd.Series(r) for pos, r in official_data.get('reserves', {}).items()}
+                else:
+                    selected_df = df[df['ID'].isin(official_starters_ids)].copy()
+                    selected_df['Is_Capitao'] = (selected_df['ID'] == official_captain_id)
+                    reservas = {}
+                    for pos, r_id in official_reserves_ids.items():
+                        r_sub = df[df['ID'] == r_id]
+                        if not r_sub.empty:
+                            r_series = r_sub.iloc[0].copy()
+                            worst_starter_xp = selected_df[selected_df['Posicao'] == pos]['Media_Ajustada'].min() if not selected_df[selected_df['Posicao'] == pos].empty else 0
+                            r_series['Worst_Starter_XP'] = worst_starter_xp
+                            r_series['Expected_Gain'] = round(max(0.0, (r_series.get('Upside', r_series.get('Media_Ajustada', 0)) - worst_starter_xp) * 0.4), 2)
+                            reservas[pos] = r_series
             else:
                 st.info(f"🏆 **Rodada {rodada_num} do Brasileirão** analisada no modo Simulador!")
                 if formation_option == "auto":
@@ -1006,9 +1099,9 @@ def main():
                                 
                         save_official_team(
                             rodada=rodada_num,
-                            starters_ids=selected_df['ID'].tolist(),
+                            starters_df=selected_df,
                             captain_id=int(capitao_row['ID']),
-                            reserves_ids=res_ids,
+                            reserves_dict=reservas,
                             super_sub_pos=best_res_pos_calc or "Atacante"
                         )
                         st.success(f"✅ Time da Rodada {rodada_num} salvo como Oficial com sucesso!")
