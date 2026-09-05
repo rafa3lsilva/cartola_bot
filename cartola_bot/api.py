@@ -63,22 +63,27 @@ class CartolaAPI:
         url = self.config.get('partidas_url', "https://api.cartola.globo.com/partidas")
         return self._fetch(url, "partidas", use_cache)
 
-    def get_pontuados(self):
-        """Obtém as pontuações e scouts em tempo real dos atletas na rodada."""
-        url = "https://api.cartola.globo.com/atletas/pontuados"
+    def get_pontuados(self, rodada=None):
+        """Obtém as pontuações e scouts em tempo real dos atletas na rodada (ou de uma rodada histórica)."""
+        if rodada is not None:
+            url = f"https://api.cartola.globo.com/atletas/pontuados/{rodada}"
+            cache_key = f"pontuados_{rodada}"
+        else:
+            url = "https://api.cartola.globo.com/atletas/pontuados"
+            cache_key = "pontuados"
         try:
             response = requests.get(url, headers=self.headers, timeout=5)
             response.raise_for_status()
             data = response.json()
-            with open(self._get_cache_path("pontuados"), 'w', encoding='utf-8') as f:
+            with open(self._get_cache_path(cache_key), 'w', encoding='utf-8') as f:
                 json.dump(data, f)
             return data
         except Exception as e:
-            cache_path = self._get_cache_path("pontuados")
+            cache_path = self._get_cache_path(cache_key)
             if os.path.exists(cache_path):
                 with open(cache_path, 'r', encoding='utf-8') as f:
                     return json.load(f)
-            return {"atletas": {}, "rodada": None}
+            return {"atletas": {}, "rodada": rodada}
 
     def get_mercado_status(self):
         """Obtém o status do mercado (1: Aberto, 2: Fechado/Jogos em andamento, 6: Apuração)."""

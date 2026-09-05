@@ -1,18 +1,18 @@
 ﻿Tipo,Posição,Jogador,Clube,Preço (C$),xP Projetado,Pontos Reais,Saldo (Real - xP),Desempenho,Scouts na Rodada
-Titular,Zagueiro,Dantas,CAP,5.88,6.07,5.9,-0.17,🎯 Na Meta,"DS:4, FC:2, FS:1"
-Titular,Lateral,Luciano Juba,BAH,11.99,8.73,,,⏳ Aguardando Jogo,-
-Titular,Meia,Yago Felipe,CHA,9.11,8.12,,,⏳ Aguardando Jogo,-
-Titular,Zagueiro,David Duarte,BAH,6.97,7.01,,,⏳ Aguardando Jogo,-
-Titular,Goleiro,Ronaldo,BAH,8.53,7.39,,,⏳ Aguardando Jogo,-
-Titular,Meia,Acevedo,BAH,7.51,7.27,,,⏳ Aguardando Jogo,-
-Titular,Lateral,Matheus Bidu,COR,12.32,8.0,,,⏳ Aguardando Jogo,-
-Titular,Técnico,Rogério Ceni,BAH,11.04,6.83,0.0,-6.83,❄️ Ficou Abaixo,
-Titular,Meia,Garro,COR,11.23,7.92,,,⏳ Aguardando Jogo,-
-Titular,Atacante,Flaco López,PAL,15.87,8.13,,,⏳ Aguardando Jogo,-
-Titular,Atacante,👑 Viveros [C],CAP,14.28,15.67,15.45,-0.22,🎯 Na Meta,"CA:1, FC:5, FD:3, FS:1, G:1, I:3, PS:1"
-Titular,Atacante,Kaio César,COR,9.91,8.54,,,⏳ Aguardando Jogo,-
-Reserva,Goleiro,Weverton,GRE,7.18,6.35,,,⏳ Aguardando Jogo,-
-Reserva,Lateral,Marlon,GRE,8.29,7.03,,,⏳ Aguardando Jogo,-
-Reserva,Zagueiro,Wallace,GRE,4.81,5.19,,,⏳ Aguardando Jogo,-
-Reserva,Meia,Josué,CFC,5.98,5.54,,,⏳ Aguardando Jogo,-
-Reserva,Atacante,⭐ Alejo Véliz [Reserva Luxo],BAH,6.97,8.32,,,⏳ Aguardando Jogo,-
+Titular,Zagueiro,Dantas,CAP,6.38,3.86,5.9,2.04,🔥 Superou xP,"DS:4, FC:2, FS:1"
+Titular,Lateral,Luciano Juba,BAH,10.4,5.17,1.0,-4.17,❄️ Ficou Abaixo,FS:2
+Titular,Meia,Yago Felipe,CHA,9.55,5.04,7.1,2.06,🔥 Superou xP,"DS:4, FC:3, FD:1, FF:1"
+Titular,Lateral,Matheus Bidu,COR,12.06,8.65,3.8,-4.85,❄️ Ficou Abaixo,"DS:1, FC:2, FF:2, FS:3, I:2"
+Titular,Goleiro,Ronaldo,BAH,7.12,3.75,-0.7,-4.45,❄️ Ficou Abaixo,"DE:1, GS:2"
+Titular,Zagueiro,David Duarte,BAH,6.2,4.08,2.0,-2.08,❄️ Ficou Abaixo,"CA:1, DS:1, FC:1, FF:1, FS:2"
+Titular,Meia,Acevedo,BAH,8.68,3.35,13.2,9.85,🔥 Superou xP,"A:1, DS:5, FC:1, FS:2"
+Titular,Técnico,Rogério Ceni,BAH,10.65,3.29,7.15,3.86,🔥 Superou xP,V:1
+Titular,Meia,Garro,COR,9.82,7.81,0.7,-7.11,❄️ Ficou Abaixo,"CA:1, FC:2, FF:1, FS:3"
+Titular,Atacante,Flaco López,PAL,14.16,4.48,9.0,4.52,🔥 Superou xP,"DS:4, FC:1, FD:1, FF:2, FS:1"
+Titular,Atacante,👑 Viveros [C],CAP,13.47,8.67,15.45,6.78,🔥 Superou xP,"CA:1, FC:5, FD:3, FS:1, G:1, I:3, PS:1"
+Titular,Atacante,Kaio César,COR,9.98,8.68,5.0,-3.68,❄️ Ficou Abaixo,"DS:2, FS:4"
+Reserva,Goleiro,Weverton,GRE,8.18,4.12,8.1,3.98,🔥 Superou xP,"DE:7, GS:1"
+Reserva,Lateral,Marlon,GRE,8.13,4.05,1.7,-2.35,❄️ Ficou Abaixo,"CA:1, DS:2, FC:1"
+Reserva,Zagueiro,Wallace,GRE,5.49,3.42,5.0,1.58,🔥 Superou xP,"DS:3, FS:1"
+Reserva,Meia,Josué,CFC,5.98,6.56,0.0,-6.56,❄️ Não Entrou,-
+Reserva,Atacante,⭐ Alejo Véliz [Reserva Luxo],BAH,7.41,3.64,10.1,6.46,🔥 Superou xP,"A:1, DS:1, FC:1, FD:1, FF:1, FS:4, I:1"

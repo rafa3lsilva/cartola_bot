@@ -1082,20 +1082,21 @@ def main():
 
         with tab_live:
             # 🔴 PARCIAIS AO VIVO
+            active_round = official_round if app_mode == "oficial" else rodada_num
             col_l1, col_l2 = st.columns([3, 1])
             with col_l1:
-                st.subheader(f"🔴 Parciais em Tempo Real • M1TOS EC (Rodada {rodada_num})")
+                st.subheader(f"🔴 Parciais em Tempo Real • M1TOS EC (Rodada {active_round})")
             with col_l2:
                 refresh_live = st.button("🔄 Atualizar Parciais", use_container_width=True)
 
-            pontuados_data = api.get_pontuados()
+            pontuados_data = api.get_pontuados(rodada=active_round if active_round and active_round != '?' else None)
             pontuados = pontuados_data.get('atletas', {})
             total_pontuados_count = len(pontuados)
 
             if total_pontuados_count == 0:
                 st.info("ℹ️ Os jogos da rodada ainda não começaram ou os scouts ao vivo ainda não foram abertos pela Globo. Assim que os jogos começarem, as parciais aparecerão aqui automaticamente!")
             else:
-                st.caption(f"📡 Dados ao vivo sincronizados com a Globo • {total_pontuados_count} atletas já pontuaram na rodada.")
+                st.caption(f"📡 Dados ao vivo sincronizados com a Globo • {total_pontuados_count} atletas pontuaram na Rodada {active_round}.")
 
             # Calcular parciais do time
             live_rows = []
