@@ -135,6 +135,8 @@ class TeamOptimizer:
                 
                 reservas[pos] = pd.Series(best_res)
                 
+        return reservas
+
     def analyze_user_lineup(self, df, selected_df, captain_id=None, budget=146.07):
         """Analisa a escalação escolhida pelo usuário e gera diagnóstico detalhado atleta por atleta."""
         if selected_df.empty:

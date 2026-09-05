@@ -954,6 +954,8 @@ def main():
 
                 reservas = optimizer.get_reservas(df, selected_df)
 
+        reservas = reservas or {}
+
         capitao_row = selected_df[selected_df['Is_Capitao']].iloc[0] if 'Is_Capitao' in selected_df.columns and selected_df['Is_Capitao'].any() else selected_df.iloc[0]
         capitao_nome = capitao_row['Nome']
         capitao_extra = capitao_row['Media_Ajustada'] * 0.5
@@ -1248,11 +1250,12 @@ def main():
             # Checagem ao vivo do Reserva de Luxo
             best_res_pos = None
             max_upside = -1.0
-            for pos, r in reservas.items():
-                up = r.get('Upside', r.get('Media_Ajustada', 0))
-                if up > max_upside:
-                    max_upside = up
-                    best_res_pos = pos
+            if reservas:
+                for pos, r in reservas.items():
+                    up = r.get('Upside', r.get('Media_Ajustada', 0))
+                    if up > max_upside:
+                        max_upside = up
+                        best_res_pos = pos
 
             if best_res_pos and best_res_pos in reservas:
                 super_res = reservas[best_res_pos]
@@ -1466,35 +1469,36 @@ def main():
                 "Scouts na Rodada": scouts_d
             })
 
-        for pos, r in reservas.items():
-            is_super = (pos == best_res_pos)
-            xp_exp = r.get('Media_Ajustada', 0.0)
-            rpinfo = pontuados.get(str(r.get('ID')))
-            
-            if rpinfo is not None:
-                pts_r = float(rpinfo.get('pontuacao', 0.0))
-                diff_pts = round(pts_r - xp_exp, 2)
-                status_perf = "🔥 Superou xP" if diff_pts > 0.5 else ("❄️ Ficou Abaixo" if diff_pts < -0.5 else "🎯 Na Meta")
-                scouts_d = ", ".join([f"{k}:{v}" for k, v in (rpinfo.get('scout') or {}).items()])
-            else:
-                pts_r = None
-                diff_pts = None
-                status_perf = "⏳ Aguardando Jogo"
-                scouts_d = "-"
+        if reservas:
+            for pos, r in reservas.items():
+                is_super = (pos == best_res_pos)
+                xp_exp = r.get('Media_Ajustada', 0.0)
+                rpinfo = pontuados.get(str(r.get('ID')))
+                
+                if rpinfo is not None:
+                    pts_r = float(rpinfo.get('pontuacao', 0.0))
+                    diff_pts = round(pts_r - xp_exp, 2)
+                    status_perf = "🔥 Superou xP" if diff_pts > 0.5 else ("❄️ Ficou Abaixo" if diff_pts < -0.5 else "🎯 Na Meta")
+                    scouts_d = ", ".join([f"{k}:{v}" for k, v in (rpinfo.get('scout') or {}).items()])
+                else:
+                    pts_r = None
+                    diff_pts = None
+                    status_perf = "⏳ Aguardando Jogo"
+                    scouts_d = "-"
 
-            nome_res_disp = f"⭐ {r['Nome']} [Reserva Luxo]" if is_super else r['Nome']
-            report_rows.append({
-                "Tipo": "Reserva",
-                "Posição": r['Posicao'],
-                "Jogador": nome_res_disp,
-                "Clube": r['Clube'],
-                "Preço (C$)": round(r['Preco'], 2),
-                "xP Projetado": round(xp_exp, 2),
-                "Pontos Reais": round(pts_r, 2) if pts_r is not None else "",
-                "Saldo (Real - xP)": diff_pts if diff_pts is not None else "",
-                "Desempenho": status_perf,
-                "Scouts na Rodada": scouts_d
-            })
+                nome_res_disp = f"⭐ {r['Nome']} [Reserva Luxo]" if is_super else r['Nome']
+                report_rows.append({
+                    "Tipo": "Reserva",
+                    "Posição": r['Posicao'],
+                    "Jogador": nome_res_disp,
+                    "Clube": r['Clube'],
+                    "Preço (C$)": round(r['Preco'], 2),
+                    "xP Projetado": round(xp_exp, 2),
+                    "Pontos Reais": round(pts_r, 2) if pts_r is not None else "",
+                    "Saldo (Real - xP)": diff_pts if diff_pts is not None else "",
+                    "Desempenho": status_perf,
+                    "Scouts na Rodada": scouts_d
+                })
 
         report_df = pd.DataFrame(report_rows)
         csv_report_data = report_df.to_csv(index=False).encode('utf-8-sig')
