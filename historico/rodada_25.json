@@ -15,7 +15,9 @@
       "Media_Ajustada": 7.39,
       "SG_Prob": 63.0,
       "Confronto": "vs INT (C)",
-      "Is_Capitao": false
+      "Is_Capitao": false,
+      "Media": 7.39,
+      "Min_Val": 3.16
     },
     {
       "ID": 107093,
@@ -26,7 +28,9 @@
       "Media_Ajustada": 8.73,
       "SG_Prob": 63.0,
       "Confronto": "vs INT (C)",
-      "Is_Capitao": false
+      "Is_Capitao": false,
+      "Media": 8.73,
+      "Min_Val": 4.44
     },
     {
       "ID": 105531,
@@ -37,7 +41,9 @@
       "Media_Ajustada": 8.0,
       "SG_Prob": 50.0,
       "Confronto": "vs SAN (C)",
-      "Is_Capitao": false
+      "Is_Capitao": false,
+      "Media": 8.0,
+      "Min_Val": 4.56
     },
     {
       "ID": 91772,
@@ -48,7 +54,9 @@
       "Media_Ajustada": 7.01,
       "SG_Prob": 63.0,
       "Confronto": "vs INT (C)",
-      "Is_Capitao": false
+      "Is_Capitao": false,
+      "Media": 7.01,
+      "Min_Val": 2.58
     },
     {
       "ID": 123445,
@@ -59,7 +67,9 @@
       "Media_Ajustada": 6.07,
       "SG_Prob": 48.0,
       "Confronto": "vs FLU (C)",
-      "Is_Capitao": false
+      "Is_Capitao": false,
+      "Media": 6.07,
+      "Min_Val": 2.18
     },
     {
       "ID": 117632,
@@ -70,7 +80,9 @@
       "Media_Ajustada": 7.92,
       "SG_Prob": null,
       "Confronto": "vs SAN (C)",
-      "Is_Capitao": false
+      "Is_Capitao": false,
+      "Media": 7.92,
+      "Min_Val": 4.16
     },
     {
       "ID": 87747,
@@ -81,7 +93,9 @@
       "Media_Ajustada": 8.12,
       "SG_Prob": null,
       "Confronto": "@ GRE (F)",
-      "Is_Capitao": false
+      "Is_Capitao": false,
+      "Media": 8.12,
+      "Min_Val": 3.37
     },
     {
       "ID": 104783,
@@ -92,7 +106,9 @@
       "Media_Ajustada": 7.27,
       "SG_Prob": null,
       "Confronto": "vs INT (C)",
-      "Is_Capitao": false
+      "Is_Capitao": false,
+      "Media": 7.27,
+      "Min_Val": 2.78
     },
     {
       "ID": 143193,
@@ -103,7 +119,9 @@
       "Media_Ajustada": 10.45,
       "SG_Prob": null,
       "Confronto": "vs FLU (C)",
-      "Is_Capitao": true
+      "Is_Capitao": true,
+      "Media": 10.45,
+      "Min_Val": 5.28
     },
     {
       "ID": 118844,
@@ -114,7 +132,9 @@
       "Media_Ajustada": 8.54,
       "SG_Prob": null,
       "Confronto": "vs SAN (C)",
-      "Is_Capitao": false
+      "Is_Capitao": false,
+      "Media": 8.54,
+      "Min_Val": 3.67
     },
     {
       "ID": 113103,
@@ -125,7 +145,9 @@
       "Media_Ajustada": 8.13,
       "SG_Prob": null,
       "Confronto": "@ MIR (F)",
-      "Is_Capitao": false
+      "Is_Capitao": false,
+      "Media": 8.13,
+      "Min_Val": 5.87
     },
     {
       "ID": 97341,
@@ -136,7 +158,9 @@
       "Media_Ajustada": 6.83,
       "SG_Prob": null,
       "Confronto": "vs INT (C)",
-      "Is_Capitao": false
+      "Is_Capitao": false,
+      "Media": 6.83,
+      "Min_Val": 4.08
     }
   ],
   "reserves": {

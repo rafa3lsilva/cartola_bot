@@ -73,6 +73,8 @@ def save_official_team(rodada, starters_df, captain_id, reserves_dict, super_sub
             'Posicao': str(row['Posicao']),
             'Clube': str(row['Clube']),
             'Preco': float(row['Preco']),
+            'Media': float(row.get('Media', row['Media_Ajustada'])),
+            'Min_Val': float(row.get('Min_Val', row['Preco'] * 0.37)),
             'Media_Ajustada': float(row['Media_Ajustada']),
             'Upside': float(row.get('Upside', row['Media_Ajustada'])),
             'SG_Prob': float(row['SG_Prob']) if pd.notna(row.get('SG_Prob')) else None,
@@ -1345,15 +1347,17 @@ def main():
                     is_cap = p['Nome'] == capitao_nome
                     nome_display = f"👑 {p['Nome']} [CAPITÃO]" if is_cap else p['Nome']
                     xp_val = p['Media_Ajustada'] * 1.5 if is_cap else p['Media_Ajustada']
-                    sg_val = f"{p['SG_Prob']:.0f}%" if ('SG_Prob' in p and p['Posicao'] in ['Goleiro', 'Lateral', 'Zagueiro']) else "-"
+                    media_val = f"{p['Media']:.2f}" if ('Media' in p and pd.notna(p['Media'])) else f"{p.get('Media_Ajustada', 0.0):.2f}"
+                    min_val = f"C$ {p['Min_Val']:.2f}" if ('Min_Val' in p and pd.notna(p['Min_Val'])) else f"C$ {(p.get('Preco', 0.0) * 0.37):.2f}"
+                    sg_val = f"{p['SG_Prob']:.0f}%" if ('SG_Prob' in p and pd.notna(p['SG_Prob']) and p['Posicao'] in ['Goleiro', 'Lateral', 'Zagueiro']) else "-"
                     table_rows.append({
                         "Posição": p['Posicao'],
                         "Jogador": nome_display,
                         "Clube": p['Clube'],
                         "Preço (C$)": f"C$ {p['Preco']:.2f}",
-                        "Média Hist.": f"{p['Media']:.2f}",
+                        "Média Hist.": media_val,
                         "Chance SG": sg_val,
-                        "Mín. Val.": f"C$ {p['Min_Val']:.2f}",
+                        "Mín. Val.": min_val,
                         "xP Esperado": f"{xp_val:.2f} pts"
                     })
             st.dataframe(pd.DataFrame(table_rows), use_container_width=True, hide_index=True)
