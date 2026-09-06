@@ -5,3 +5,5 @@ pulp
 rich
 matplotlib
 streamlit
+st-gsheets-connection
+gspread

@@ -9,123 +9,15 @@ from cartola_bot.scoring import Scorer
 from cartola_bot.solver import TeamOptimizer
 from cartola_bot.exporter import Exporter
 from cartola_bot.utils.config_loader import load_config
+from cartola_bot.gsheets_manager import (
+    load_official_team,
+    save_official_team,
+    get_saved_rounds,
+    is_gsheets_configured,
+    OFFICIAL_FILE,
+    HISTORICO_DIR
+)
 
-# Arquivo de persistência da escalação oficial e histórico
-OFFICIAL_FILE = "time_oficial_ativo.json"
-HISTORICO_DIR = "historico"
-
-def load_official_team(rodada=None):
-    """Carrega os dados do time oficial escalado a partir do arquivo JSON ou histórico."""
-    if rodada is not None:
-        hist_path = os.path.join(HISTORICO_DIR, f"rodada_{rodada}.json")
-        if os.path.exists(hist_path):
-            try:
-                with open(hist_path, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            except Exception:
-                pass
-    if os.path.exists(OFFICIAL_FILE):
-        try:
-            with open(OFFICIAL_FILE, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {
-        "rodada": 25,
-        "starters_ids": [91101, 107093, 105531, 91772, 123445, 117632, 87747, 104783, 143193, 118844, 113103, 97341],
-        "captain_id": 143193,
-        "reserves_ids": {'Goleiro': 71631, 'Lateral': 91706, 'Zagueiro': 130307, 'Meia': 84626, 'Atacante': 114208},
-        "super_sub_pos": "Atacante"
-    }
-
-def get_saved_rounds():
-    """Retorna lista de todas as rodadas salvas no histórico."""
-    os.makedirs(HISTORICO_DIR, exist_ok=True)
-    rounds = set()
-    if os.path.exists(OFFICIAL_FILE):
-        try:
-            with open(OFFICIAL_FILE, 'r', encoding='utf-8') as f:
-                d = json.load(f)
-                if 'rodada' in d:
-                    rounds.add(int(d['rodada']))
-        except Exception:
-            pass
-    for f in os.listdir(HISTORICO_DIR):
-        if f.startswith("rodada_") and f.endswith(".json"):
-            try:
-                r_num = int(f.replace("rodada_", "").replace(".json", ""))
-                rounds.add(r_num)
-            except Exception:
-                pass
-    return sorted(list(rounds), reverse=True)
-
-def save_official_team(rodada, starters_df, captain_id, reserves_dict, super_sub_pos="Atacante"):
-    """Salva um snapshot completo e imutável da escalação oficial."""
-    os.makedirs(HISTORICO_DIR, exist_ok=True)
-    
-    starters_list = []
-    for _, row in starters_df.iterrows():
-        p_id = int(row['ID'])
-        is_cap = (p_id == int(captain_id))
-        starters_list.append({
-            'ID': p_id,
-            'Nome': str(row['Nome']),
-            'Posicao': str(row['Posicao']),
-            'Clube': str(row['Clube']),
-            'Preco': float(row['Preco']),
-            'Media': float(row.get('Media', row['Media_Ajustada'])),
-            'Min_Val': float(row.get('Min_Val', row['Preco'] * 0.37)),
-            'Media_Ajustada': float(row['Media_Ajustada']),
-            'Upside': float(row.get('Upside', row['Media_Ajustada'])),
-            'SG_Prob': float(row['SG_Prob']) if pd.notna(row.get('SG_Prob')) else None,
-            'Confronto': str(row.get('Confronto', '')),
-            'Is_Capitao': is_cap,
-            'Foto': str(row.get('Foto', '')),
-            'Escudo': str(row.get('Escudo', ''))
-        })
-
-    reserves_data = {}
-    for pos, r in reserves_dict.items():
-        is_super = (pos == super_sub_pos)
-        reserves_data[pos] = {
-            'ID': int(r['ID']),
-            'Nome': str(r['Nome']),
-            'Posicao': str(r['Posicao']),
-            'Clube': str(r['Clube']),
-            'Preco': float(r['Preco']),
-            'Media_Ajustada': float(r.get('Media_Ajustada', 0.0)),
-            'Upside': float(r.get('Upside', r.get('Media_Ajustada', 0.0))),
-            'Is_Super_Sub': is_super,
-            'Foto': str(r.get('Foto', '')),
-            'Escudo': str(r.get('Escudo', ''))
-        }
-
-    total_cost = float(starters_df['Preco'].sum())
-    cap_bonus = float(starters_df[starters_df['ID'] == int(captain_id)]['Media_Ajustada'].iloc[0] * 0.5) if not starters_df[starters_df['ID'] == int(captain_id)].empty else 0.0
-    total_xp = round(float(starters_df['Media_Ajustada'].sum() + cap_bonus), 2)
-
-    data = {
-        "rodada": int(rodada),
-        "saved_at": datetime.now().isoformat(),
-        "total_cost": total_cost,
-        "total_xp_projected": total_xp,
-        "captain_id": int(captain_id),
-        "super_sub_pos": super_sub_pos,
-        "starters_ids": [int(i) for i in starters_df['ID'].tolist()],
-        "reserves_ids": {pos: int(r['ID']) for pos, r in reserves_dict.items()},
-        "starters": starters_list,
-        "reserves": reserves_data
-    }
-
-    # Salvar no arquivo oficial ativo e no histórico permanente da rodada
-    with open(OFFICIAL_FILE, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-        
-    hist_file = os.path.join(HISTORICO_DIR, f"rodada_{rodada}.json")
-    with open(hist_file, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-        
-    return data
 
 # Configuração da página para máxima responsividade
 st.set_page_config(
@@ -881,6 +773,46 @@ def main():
         
         # Placeholder para o botão de exportação na Sidebar
         export_sidebar_placeholder = st.sidebar.empty()
+
+        # Seção de Sincronização em Nuvem & Backup
+        st.html('<div class="sidebar-section">☁️ SINCRONIZAÇÃO EM NUVEM</div>')
+        if is_gsheets_configured():
+            st.success("🟢 Google Sheets Conectado", icon="☁️")
+        else:
+            st.info("🟡 Armazenamento Local Ativo", icon="💾")
+            with st.expander("ℹ️ Como ligar Google Sheets"):
+                st.markdown("""
+                **Para salvar na nuvem:**
+                1. Conecte sua planilha Google no Streamlit Secrets (`[connections.gsheets]`).
+                2. Cada time salvo será gravado instantaneamente na sua planilha do Google Drive.
+                """)
+
+        with st.expander("📥 Backup & Restauração (.json)"):
+            curr_team_json = json.dumps(official_data, indent=2, ensure_ascii=False)
+            st.download_button(
+                label=f"💾 Baixar Escalação R{official_round} (.json)",
+                data=curr_team_json,
+                file_name=f"escalacao_m1tos_rodada_{official_round}.json",
+                mime="application/json",
+                use_container_width=True
+            )
+            uploaded_json = st.file_uploader("Restaurar arquivo .json:", type=["json"], key="upload_backup_team")
+            if uploaded_json is not None:
+                try:
+                    restored_data = json.load(uploaded_json)
+                    if "rodada" in restored_data and ("starters_ids" in restored_data or "starters" in restored_data):
+                        r_num = restored_data["rodada"]
+                        os.makedirs(HISTORICO_DIR, exist_ok=True)
+                        with open(os.path.join(HISTORICO_DIR, f"rodada_{r_num}.json"), 'w', encoding='utf-8') as f:
+                            json.dump(restored_data, f, indent=2, ensure_ascii=False)
+                        with open(OFFICIAL_FILE, 'w', encoding='utf-8') as f:
+                            json.dump(restored_data, f, indent=2, ensure_ascii=False)
+                        st.success(f"✅ Escalação da Rodada {r_num} restaurada com sucesso!")
+                        st.rerun()
+                    else:
+                        st.error("Arquivo JSON inválido para escalação.")
+                except Exception as e:
+                    st.error(f"Erro ao ler arquivo: {e}")
         
         # Rodapé da Sidebar
         st.html('''
@@ -889,6 +821,7 @@ def main():
             © 2026 Cartola Bot Pro
         </div>
         ''')
+
 
     try:
         config, mercado_data, partidas_data = load_app_data(use_cache=not force_refresh)
