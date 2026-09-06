@@ -662,10 +662,22 @@ def render_live_player_card(p, pinfo=None, is_captain=False, is_super_sub=False)
             if scouts_raw.get('DS'): scout_chips.append(f'<span class="scout-chip scout-chip-ds">🛡️ {scouts_raw["DS"]}DS</span>')
             if scouts_raw.get('DE'): scout_chips.append(f'<span class="scout-chip scout-chip-de">🧤 {scouts_raw["DE"]}DE</span>')
             if scouts_raw.get('SG'): scout_chips.append(f'<span class="scout-chip scout-chip-sg">🛡️ SG</span>')
+            if scouts_raw.get('FD'): scout_chips.append(f'<span class="scout-chip scout-chip-a">⚡ {scouts_raw["FD"]}FD</span>')
+            if scouts_raw.get('FF'): scout_chips.append(f'<span class="scout-chip scout-chip-a">👟 {scouts_raw["FF"]}FF</span>')
+            if scouts_raw.get('FT'): scout_chips.append(f'<span class="scout-chip scout-chip-g">🥅 {scouts_raw["FT"]}FT</span>')
+            if scouts_raw.get('FS'): scout_chips.append(f'<span class="scout-chip scout-chip-ds">🩹 {scouts_raw["FS"]}FS</span>')
             if scouts_raw.get('CA'): scout_chips.append(f'<span class="scout-chip scout-chip-ca">🟨 {scouts_raw["CA"]}CA</span>')
             if scouts_raw.get('CV'): scout_chips.append(f'<span class="scout-chip scout-chip-cv">🟥 {scouts_raw["CV"]}CV</span>')
+            if scouts_raw.get('FC'): scout_chips.append(f'<span class="scout-chip scout-chip-cv">⚠️ {scouts_raw["FC"]}FC</span>')
+            if scouts_raw.get('GS'): scout_chips.append(f'<span class="scout-chip scout-chip-cv">🥅 {scouts_raw["GS"]}GS</span>')
+            if scouts_raw.get('I'): scout_chips.append(f'<span class="scout-chip scout-chip-ca">🚩 {scouts_raw["I"]}Imp</span>')
+            if scouts_raw.get('DP'): scout_chips.append(f'<span class="scout-chip scout-chip-g">🧤 {scouts_raw["DP"]}DP</span>')
+            if scouts_raw.get('PP'): scout_chips.append(f'<span class="scout-chip scout-chip-cv">❌ {scouts_raw["PP"]}PP</span>')
+            if scouts_raw.get('GC'): scout_chips.append(f'<span class="scout-chip scout-chip-cv">🚫 {scouts_raw["GC"]}GC</span>')
+            if scouts_raw.get('V'): scout_chips.append(f'<span class="scout-chip scout-chip-g">🏆 Vit</span>')
         
         chips_html = "".join(scout_chips) if scout_chips else '<span style="font-size:0.70rem;color:#94a3b8;">Em campo</span>'
+
     else:
         score_box_html = (
             f'<div class="live-score-box">'
@@ -1211,6 +1223,9 @@ def main():
                         st.info(f"🔄 **Reserva de Luxo:** {super_res['Nome']} já jogou e fez **{pts_res:.2f} pts**! Aguardando os titulares da posição jogarem.")
                 else:
                     st.info(f"⭐ **Reserva de Luxo Oficial:** {super_res['Nome']} ({super_res['Posicao']} - {super_res['Clube']}) ainda não jogou.")
+
+            with st.expander("📊 Ver Tabela Detalhada de Parciais e Scouts", expanded=False):
+                st.dataframe(pd.DataFrame(live_rows), use_container_width=True, hide_index=True)
 
             # ATAQUE AO VIVO
             atacantes = selected_df[selected_df['Posicao'] == 'Atacante']

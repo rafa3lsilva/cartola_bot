@@ -70,25 +70,52 @@ class CartolaAPI:
         elif rodada is None and len(args) > 0:
             rodada = args[0]
             
+        # 1. Primeiro tenta buscar o endpoint ao vivo (/atletas/pontuados)
+        live_data = None
+        try:
+            resp_live = requests.get("https://api.cartola.globo.com/atletas/pontuados", headers=self.headers, timeout=5)
+            if resp_live.status_code == 200:
+                live_data = resp_live.json()
+                with open(self._get_cache_path("pontuados"), 'w', encoding='utf-8') as f:
+                    json.dump(live_data, f)
+        except Exception:
+            pass
+
+        # Se a rodada solicitada coincidir com a rodada ao vivo ou se não especificou rodada
+        if live_data and live_data.get('atletas'):
+            live_round = str(live_data.get('rodada', ''))
+            if rodada is None or str(rodada) == '?' or str(rodada) == live_round:
+                return live_data
+
+        # 2. Se for uma rodada histórica específica diferente da rodada ao vivo
         if rodada is not None and str(rodada) != '?':
             url = f"https://api.cartola.globo.com/atletas/pontuados/{rodada}"
             cache_key = f"pontuados_{rodada}"
-        else:
-            url = "https://api.cartola.globo.com/atletas/pontuados"
-            cache_key = "pontuados"
-        try:
-            response = requests.get(url, headers=self.headers, timeout=5)
-            response.raise_for_status()
-            data = response.json()
-            with open(self._get_cache_path(cache_key), 'w', encoding='utf-8') as f:
-                json.dump(data, f)
-            return data
-        except Exception as e:
+            try:
+                response = requests.get(url, headers=self.headers, timeout=5)
+                response.raise_for_status()
+                data = response.json()
+                if data.get('atletas'):
+                    with open(self._get_cache_path(cache_key), 'w', encoding='utf-8') as f:
+                        json.dump(data, f)
+                    return data
+            except Exception:
+                pass
+                
+            # Fallback para cache histórico
             cache_path = self._get_cache_path(cache_key)
             if os.path.exists(cache_path):
-                with open(cache_path, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            return {"atletas": {}, "rodada": rodada}
+                try:
+                    with open(cache_path, 'r', encoding='utf-8') as f:
+                        return json.load(f)
+                except Exception:
+                    pass
+
+        # Se tínhamos live_data mesmo sem bater a rodada exata, retorna
+        if live_data and live_data.get('atletas'):
+            return live_data
+
+        return {"atletas": {}, "rodada": rodada}
 
     def get_mercado_status(self):
         """Obtém o status do mercado (1: Aberto, 2: Fechado/Jogos em andamento, 6: Apuração)."""
