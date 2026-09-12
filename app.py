@@ -779,6 +779,7 @@ def render_login_screen():
                             st.session_state["cartola_session"] = res
                             st.session_state["cartola_token"] = res["token"]
                             st.session_state["guest_mode"] = False
+                            st.session_state["logged_out"] = False
                             st.balloons()
                             st.success(f"🎉 **Login realizado com sucesso!** Bem-vindo, **{res.get('team_name', 'M1TOS EC')}**!")
                             time.sleep(1.8)
@@ -807,6 +808,7 @@ def render_login_screen():
                                 st.session_state["cartola_session"] = sess
                                 st.session_state["cartola_token"] = sess["token"]
                                 st.session_state["guest_mode"] = False
+                                st.session_state["logged_out"] = False
                                 st.success(f"🎉 Conectado ao time **{sess['team_name']}**!")
                                 time.sleep(1.2)
                                 st.rerun()
@@ -816,29 +818,29 @@ def render_login_screen():
             st.markdown("---")
             if st.button("👀 Continuar como Visitante (Modo Consulta)", use_container_width=True, key="gateway_btn_guest"):
                 st.session_state["guest_mode"] = True
+                st.session_state["logged_out"] = False
                 st.rerun()
 
 def main():
-    # 1. Checar Sessão de Autenticação Ativa
-    session_data = st.session_state.get("cartola_session")
-    if not session_data:
-        session_data = AuthManager.load_active_session()
-        if session_data:
-            st.session_state["cartola_session"] = session_data
-            st.session_state["cartola_token"] = session_data.get("token", "")
-
-    # Checar Secrets como fallback
-    secrets_token = ""
-    try:
-        if hasattr(st, "secrets") and "cartola_token" in st.secrets:
-            secrets_token = st.secrets["cartola_token"]
-            if not st.session_state.get("cartola_token"):
-                st.session_state["cartola_token"] = secrets_token
-    except Exception:
-        pass
-
     is_guest = st.session_state.get("guest_mode", False)
-    has_active_auth = bool(session_data or st.session_state.get("cartola_token"))
+    is_logged_out = st.session_state.get("logged_out", False)
+
+    # Se o usuário fez logout explícito, não recupera automaticamente da nuvem/secrets
+    if is_logged_out:
+        session_data = None
+        st.session_state["cartola_session"] = None
+        st.session_state["cartola_token"] = ""
+        has_active_auth = False
+    else:
+        # 1. Checar Sessão de Autenticação Ativa
+        session_data = st.session_state.get("cartola_session")
+        if not session_data:
+            session_data = AuthManager.load_active_session()
+            if session_data:
+                st.session_state["cartola_session"] = session_data
+                st.session_state["cartola_token"] = session_data.get("token", "")
+
+        has_active_auth = bool(session_data or st.session_state.get("cartola_token"))
 
     # Se não houver autenticação e não estiver em modo visitante, exibe a tela de login como porta de entrada
     if not has_active_auth and not is_guest:
@@ -889,11 +891,15 @@ def main():
         if active_token:
             if st.button("🚪 Sair / Desconectar Conta", use_container_width=True, key="btn_logout_sidebar"):
                 AuthManager.logout()
-                st.session_state.clear()
+                st.session_state["cartola_session"] = None
+                st.session_state["cartola_token"] = ""
+                st.session_state["logged_out"] = True
+                st.session_state["guest_mode"] = False
                 st.rerun()
         else:
             if st.button("🔐 Conectar Conta Globo", type="primary", use_container_width=True, key="btn_login_sidebar"):
                 st.session_state["guest_mode"] = False
+                st.session_state["logged_out"] = False
                 st.rerun()
 
         with st.sidebar.expander("🔑 Renovar Token Globo (Sessão)", expanded=False):
