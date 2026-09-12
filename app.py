@@ -756,20 +756,14 @@ def main():
         except Exception:
             pass
 
-        token_input = st.text_input(
-            "Token de Acesso Globo:",
-            value=st.session_state.get("cartola_token", saved_token),
-            type="password",
-            help="Cole aqui seu Bearer Token para sincronizar patrimônio e escalar seu time com 1 clique!",
-            key="input_token_globo"
-        )
-        
+        active_token = st.session_state.get("cartola_token", saved_token)
         user_glb_team = None
-        if token_input:
-            st.session_state["cartola_token"] = token_input
+
+        if active_token:
+            st.session_state["cartola_token"] = active_token
             try:
                 temp_api = CartolaAPI(load_config())
-                user_glb_team = temp_api.get_user_team(token_input)
+                user_glb_team = temp_api.get_user_team(active_token)
                 if user_glb_team:
                     team_name = user_glb_team.get('time', {}).get('nome', 'Meu Time')
                     patrimonio_real = float(user_glb_team.get('patrimonio', 0.0))
@@ -778,6 +772,19 @@ def main():
                     st.warning("⚠️ Token expirado ou inválido.")
             except Exception:
                 pass
+
+        with st.expander("⚙️ Configurar / Alterar Token" if active_token else "🔑 Inserir Token Globo", expanded=not bool(active_token)):
+            token_input = st.text_input(
+                "Token de Acesso Globo:",
+                value=active_token,
+                type="password",
+                help="Token Bearer para sincronizar patrimônio e escalar seu time com 1 clique.",
+                key="input_token_globo"
+            )
+            if token_input != active_token:
+                st.session_state["cartola_token"] = token_input
+                st.rerun()
+
 
         # Seção 2: Modo de Operação com Rodada Dinâmica e Histórico
         st.html('<div class="sidebar-section">📌 MODO DE OPERAÇÃO</div>')
