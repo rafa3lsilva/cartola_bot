@@ -280,16 +280,18 @@ st.html("""
         background: #1e293b;
         border: 1px solid #334155;
         border-radius: 14px;
-        padding: 12px 8px;
+        padding: 10px 8px;
         text-align: center;
         position: relative;
-        height: 275px;
+        min-height: 315px;
+        height: 100%;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
         align-items: center;
         box-sizing: border-box;
         box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        margin-bottom: 12px;
     }
     .live-card-playing {
         border-color: #38bdf8;
@@ -308,18 +310,20 @@ st.html("""
     .live-score-box {
         background: rgba(15, 23, 42, 0.95);
         border: 1px solid #334155;
-        border-radius: 10px;
-        padding: 6px 10px;
+        border-radius: 8px;
+        padding: 6px 8px;
         margin: 4px 0;
-        width: 90%;
+        width: 100%;
+        box-sizing: border-box;
+        text-align: center;
     }
     .live-score-val {
-        font-size: 1.35rem;
+        font-size: 1.30rem;
         font-weight: 900;
-        color: #34d399;
+        line-height: 1.2;
     }
     .live-score-waiting {
-        font-size: 0.85rem;
+        font-size: 0.82rem;
         font-weight: 700;
         color: #94a3b8;
     }
@@ -327,16 +331,20 @@ st.html("""
         display: flex;
         flex-wrap: wrap;
         justify-content: center;
-        gap: 3px;
-        min-height: 24px;
+        gap: 2px;
+        width: 100%;
+        min-height: 22px;
+        margin-top: 3px;
     }
     .scout-chip {
-        font-size: 0.65rem;
+        font-size: 0.62rem;
         font-weight: 800;
-        padding: 2px 5px;
+        padding: 1px 4px;
         border-radius: 4px;
         background: #334155;
         color: #f1f5f9;
+        display: inline-block;
+        white-space: nowrap;
     }
     .scout-chip-g { background: #059669; color: #fff; }
     .scout-chip-a { background: #0284c7; color: #fff; }
@@ -354,14 +362,15 @@ st.html("""
         padding: 10px 8px;
         text-align: center;
         position: relative;
-        height: 285px;
+        min-height: 295px;
+        height: 100%;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
         align-items: center;
         box-sizing: border-box;
         box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-        margin-bottom: 10px;
+        margin-bottom: 12px;
     }
     .market-tag {
         display: inline-block;
@@ -379,7 +388,8 @@ st.html("""
         border-radius: 6px;
         padding: 4px 6px;
         line-height: 1.25;
-        width: 92%;
+        width: 100%;
+        box-sizing: border-box;
         min-height: 38px;
         display: flex;
         align-items: center;
@@ -437,13 +447,16 @@ st.html("""
     @media (max-width: 768px) {
         .main-header { font-size: 1.6rem; }
         .metric-value { font-size: 1.25rem; }
-        .player-card, .live-card, .market-player-card { height: 260px; padding: 8px 4px; }
-        .player-photo { width: 48px; height: 48px; }
-        .player-name { font-size: 0.80rem; }
+        .player-card { min-height: 250px; padding: 6px 4px; }
+        .live-card { min-height: 290px; padding: 6px 4px; }
+        .market-player-card { min-height: 275px; padding: 6px 4px; }
+        .player-photo { width: 46px; height: 46px; }
+        .player-name { font-size: 0.78rem; }
         .live-score-val { font-size: 1.15rem; }
     }
 </style>
 """)
+
 
 @st.cache_data(ttl=600)
 def load_app_data(use_cache=True):
