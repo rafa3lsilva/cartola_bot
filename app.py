@@ -836,7 +836,7 @@ def main():
                 help="Limite de segurança para evitar dependência excessiva de uma única equipe."
             )
         else:
-            budget = float(official_data.get('total_cost', default_budget))
+            budget = float(official_data.get('total_cost', patrimonio_real))
             formation_option = "4-3-3"
             max_per_club = 5
 
