@@ -737,18 +737,7 @@ def main():
     official_round = official_data.get('rodada', 25)
 
     with st.sidebar:
-        # Card do Perfil do Time M1TOS EC
-        st.html('''
-        <div class="team-profile-card">
-            <div class="team-shield">🏆</div>
-            <div class="team-title">M1TOS EC</div>
-            <div class="team-subtitle">Cartola FC • Temporada 2026</div>
-            <div class="market-status-pill">🟢 DADOS OFICIAIS ATIVOS</div>
-        </div>
-        ''')
-        
-        # Seção 1: Conexão Cartola Globo
-        st.html('<div class="sidebar-section">🔑 CONEXÃO CARTOLA GLOBO</div>')
+        # Carregar Token e Dados da Conta em segundo plano
         saved_token = ""
         try:
             if hasattr(st, "secrets") and "cartola_token" in st.secrets:
@@ -758,35 +747,29 @@ def main():
 
         active_token = st.session_state.get("cartola_token", saved_token)
         user_glb_team = None
-
+        patrimonio_real = 141.66
+        
         if active_token:
             st.session_state["cartola_token"] = active_token
             try:
                 temp_api = CartolaAPI(load_config())
                 user_glb_team = temp_api.get_user_team(active_token)
-                if user_glb_team:
-                    team_name = user_glb_team.get('time', {}).get('nome', 'Meu Time')
-                    patrimonio_real = float(user_glb_team.get('patrimonio', 0.0))
-                    st.success(f"🟢 **{team_name} Conectado**\n💰 Patrimônio: **C$ {patrimonio_real:.2f}**")
-                else:
-                    st.warning("⚠️ Token expirado ou inválido.")
+                if user_glb_team and user_glb_team.get('patrimonio'):
+                    patrimonio_real = float(user_glb_team['patrimonio'])
             except Exception:
                 pass
 
-        with st.expander("⚙️ Configurar / Alterar Token" if active_token else "🔑 Inserir Token Globo", expanded=not bool(active_token)):
-            token_input = st.text_input(
-                "Token de Acesso Globo:",
-                value=active_token,
-                type="password",
-                help="Token Bearer para sincronizar patrimônio e escalar seu time com 1 clique.",
-                key="input_token_globo"
-            )
-            if token_input != active_token:
-                st.session_state["cartola_token"] = token_input
-                st.rerun()
+        # Card do Perfil do Time M1TOS EC
+        st.html(f'''
+        <div class="team-profile-card">
+            <div class="team-shield">🏆</div>
+            <div class="team-title">M1TOS EC</div>
+            <div class="team-subtitle">Cartola FC • Temporada 2026</div>
+            <div class="market-status-pill" style="background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.3);">💰 PATRIMÔNIO: C$ {patrimonio_real:.2f}</div>
+        </div>
+        ''')
 
-
-        # Seção 2: Modo de Operação com Rodada Dinâmica e Histórico
+        # Seção 1: Modo de Operação com Rodada Dinâmica e Histórico
         st.html('<div class="sidebar-section">📌 MODO DE OPERAÇÃO</div>')
         app_mode = st.radio(
             "Modo Selecionado:",
@@ -802,14 +785,10 @@ def main():
                 official_data = load_official_team(rodada=selected_history_round)
                 official_round = selected_history_round
 
-        config_preview = load_config()
-        if user_glb_team and user_glb_team.get('patrimonio'):
-            default_budget = float(user_glb_team.get('patrimonio'))
-        else:
-            default_budget = float(config_preview.get('defaults', {}).get('budget', 141.66))
+        default_budget = float(patrimonio_real)
 
         if app_mode == "simulador":
-            # Seção 3: Cofre
+            # Seção 2: Cofre
             st.html('<div class="sidebar-section">💰 PATRIMÔNIO DISPONÍVEL</div>')
             budget = st.number_input(
                 "Saldo em Cartoletas (C$):",
@@ -821,8 +800,9 @@ def main():
                 help="Total de cartoletas disponíveis para escalar o time titular do M1TOS EC."
             )
             
-            # Seção 4: Estratégia Tática
+            # Seção 3: Estratégia Tática
             st.html('<div class="sidebar-section">📋 ESTRATÉGIA TÁTICA</div>')
+            config_preview = load_config()
             available_formations = ["auto"] + list(config_preview.get('formations', {}).keys())
             formation_option = st.selectbox(
                 "Esquema Tático:",
@@ -844,8 +824,8 @@ def main():
             formation_option = "4-3-3"
             max_per_club = 5
 
-
         # Conexão com a API
+
         st.html('<div class="sidebar-section">🔄 ATUALIZAÇÃO DA API</div>')
         force_refresh = st.checkbox("Forçar atualização ao vivo da Globo", value=False)
         

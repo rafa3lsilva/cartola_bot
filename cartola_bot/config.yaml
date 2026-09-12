@@ -58,7 +58,7 @@ formations:
     Técnico: 1
 
 defaults:
-  budget: 146.07
+  budget: 141.66
   formation: "auto"
   auto_formation: true
   max_players_per_club: 5
