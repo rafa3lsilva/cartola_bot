@@ -117,6 +117,71 @@ class CartolaAPI:
 
         return {"atletas": {}, "rodada": rodada}
 
+    def get_user_team(self, token):
+        """Busca os dados do time do usuário logado na Globo (saldo, patrimônio, escalação)."""
+        url = "https://api.cartola.globo.com/auth/time"
+        headers = dict(self.headers)
+        headers["X-GLB-Token"] = token
+        headers["Authorization"] = f"Bearer {token}" if not token.startswith("Bearer ") else token
+        try:
+            response = requests.get(url, headers=headers, cookies={"GLBID": token}, timeout=6)
+            if response.status_code == 200:
+                return response.json()
+            return None
+        except Exception:
+            return None
+
+    def save_time_to_globo(self, token, esquema_name, captain_id, starters_ids, reserves_dict=None):
+        """
+        Envia a escalação completa diretamente para a conta oficial do Cartola FC.
+        Esquemas: 3-4-3: 1, 3-5-2: 2, 4-4-2: 3, 4-3-3: 4, 5-3-2: 5
+        """
+        esquema_map = {
+            "3-4-3": 1,
+            "3-5-2": 2,
+            "4-4-2": 3,
+            "4-3-3": 4,
+            "5-3-2": 5
+        }
+        esquema_id = esquema_map.get(esquema_name, 4)
+        
+        pos_id_map = {
+            'Goleiro': 1,
+            'Lateral': 2,
+            'Zagueiro': 3,
+            'Meia': 4,
+            'Atacante': 5
+        }
+        
+        reservas_payload = {}
+        if reserves_dict:
+            for pos_name, r in reserves_dict.items():
+                pos_code = str(pos_id_map.get(pos_name, 1))
+                r_id = int(r.get('ID', r) if isinstance(r, dict) else r)
+                reservas_payload[pos_code] = r_id
+
+        payload = {
+            "esquema": esquema_id,
+            "capitao": int(captain_id),
+            "atletas": [int(i) for i in starters_ids],
+            "reservas": reservas_payload
+        }
+        
+        url = "https://api.cartola.globo.com/auth/time/salvar"
+        headers = dict(self.headers)
+        headers["Content-Type"] = "application/json"
+        headers["X-GLB-Token"] = token
+        headers["Authorization"] = f"Bearer {token}" if not token.startswith("Bearer ") else token
+        
+        try:
+            response = requests.post(url, json=payload, headers=headers, cookies={"GLBID": token}, timeout=10)
+            if response.status_code in [200, 201]:
+                return True, response.json()
+            else:
+                return False, response.text
+        except Exception as e:
+            return False, str(e)
+
     def get_mercado_status(self):
         """Obtém o status do mercado (1: Aberto, 2: Fechado/Jogos em andamento, 6: Apuração)."""
         url = "https://api.cartola.globo.com/mercado/status"
@@ -126,3 +191,5 @@ class CartolaAPI:
             return response.json()
         except Exception:
             return {"status_mercado": 1, "rodada_atual": None}
+
+

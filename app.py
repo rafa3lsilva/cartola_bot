@@ -747,7 +747,39 @@ def main():
         </div>
         ''')
         
-        # Seção 1: Modo de Operação com Rodada Dinâmica e Histórico
+        # Seção 1: Conexão Cartola Globo
+        st.html('<div class="sidebar-section">🔑 CONEXÃO CARTOLA GLOBO</div>')
+        saved_token = ""
+        try:
+            if hasattr(st, "secrets") and "cartola_token" in st.secrets:
+                saved_token = st.secrets["cartola_token"]
+        except Exception:
+            pass
+
+        token_input = st.text_input(
+            "Token de Acesso Globo:",
+            value=st.session_state.get("cartola_token", saved_token),
+            type="password",
+            help="Cole aqui seu Bearer Token para sincronizar patrimônio e escalar seu time com 1 clique!",
+            key="input_token_globo"
+        )
+        
+        user_glb_team = None
+        if token_input:
+            st.session_state["cartola_token"] = token_input
+            try:
+                temp_api = CartolaAPI(load_config())
+                user_glb_team = temp_api.get_user_team(token_input)
+                if user_glb_team:
+                    team_name = user_glb_team.get('time', {}).get('nome', 'Meu Time')
+                    patrimonio_real = float(user_glb_team.get('patrimonio', 0.0))
+                    st.success(f"🟢 **{team_name} Conectado**\n💰 Patrimônio: **C$ {patrimonio_real:.2f}**")
+                else:
+                    st.warning("⚠️ Token expirado ou inválido.")
+            except Exception:
+                pass
+
+        # Seção 2: Modo de Operação com Rodada Dinâmica e Histórico
         st.html('<div class="sidebar-section">📌 MODO DE OPERAÇÃO</div>')
         app_mode = st.radio(
             "Modo Selecionado:",
@@ -764,10 +796,13 @@ def main():
                 official_round = selected_history_round
 
         config_preview = load_config()
-        default_budget = float(config_preview.get('defaults', {}).get('budget', 146.07))
+        if user_glb_team and user_glb_team.get('patrimonio'):
+            default_budget = float(user_glb_team.get('patrimonio'))
+        else:
+            default_budget = float(config_preview.get('defaults', {}).get('budget', 141.66))
 
         if app_mode == "simulador":
-            # Seção 2: Cofre
+            # Seção 3: Cofre
             st.html('<div class="sidebar-section">💰 PATRIMÔNIO DISPONÍVEL</div>')
             budget = st.number_input(
                 "Saldo em Cartoletas (C$):",
@@ -779,7 +814,7 @@ def main():
                 help="Total de cartoletas disponíveis para escalar o time titular do M1TOS EC."
             )
             
-            # Seção 3: Estratégia Tática
+            # Seção 4: Estratégia Tática
             st.html('<div class="sidebar-section">📋 ESTRATÉGIA TÁTICA</div>')
             available_formations = ["auto"] + list(config_preview.get('formations', {}).keys())
             formation_option = st.selectbox(
@@ -801,6 +836,7 @@ def main():
             budget = float(official_data.get('total_cost', default_budget))
             formation_option = "4-3-3"
             max_per_club = 5
+
 
         # Conexão com a API
         st.html('<div class="sidebar-section">🔄 ATUALIZAÇÃO DA API</div>')
@@ -1059,29 +1095,76 @@ def main():
 
                 # Ações Finais da Consultoria
                 st.markdown("---")
-                act_col1, act_col2 = st.columns([3, 2])
-                with act_col1:
-                    st.write("🛡️ **Pronto para a rodada?** Salve este time para travar sua escalação oficial e acompanhar parciais ao vivo.")
-                with act_col2:
-                    if st.button(f"💾 SALVAR COMO TIME OFICIAL (R{rodada_num})", type="primary", use_container_width=True, key="btn_save_advisor"):
-                        res_ids = {pos: int(r['ID']) for pos, r in reservas.items()}
-                        best_res_pos_calc = None
-                        max_up = -1.0
-                        for pos, r in reservas.items():
-                            up = r.get('Upside', r.get('Media_Ajustada', 0))
-                            if up > max_up:
-                                max_up = up
-                                best_res_pos_calc = pos
-                                
-                        save_official_team(
-                            rodada=rodada_num,
-                            starters_df=selected_df,
-                            captain_id=int(capitao_row['ID']),
-                            reserves_dict=reservas,
-                            super_sub_pos=best_res_pos_calc or "Atacante"
-                        )
-                        st.success(f"✅ Time da Rodada {rodada_num} salvo como Oficial com sucesso!")
-                        st.rerun()
+                token_active = st.session_state.get("cartola_token", "")
+                
+                if token_active:
+                    btn_c1, btn_c2 = st.columns(2)
+                    with btn_c1:
+                        if st.button(f"💾 SALVAR NO APP (RODADA {rodada_num})", use_container_width=True, key="btn_save_advisor"):
+                            best_res_pos_calc = None
+                            max_up = -1.0
+                            for pos, r in reservas.items():
+                                up = r.get('Upside', r.get('Media_Ajustada', 0))
+                                if up > max_up:
+                                    max_up = up
+                                    best_res_pos_calc = pos
+                                    
+                            save_official_team(
+                                rodada=rodada_num,
+                                starters_df=selected_df,
+                                captain_id=int(capitao_row['ID']),
+                                reserves_dict=reservas,
+                                super_sub_pos=best_res_pos_calc or "Atacante"
+                            )
+                            st.success(f"✅ Time da Rodada {rodada_num} salvo com sucesso!")
+                            st.rerun()
+                    with btn_c2:
+                        if st.button(f"🚀 ESCALAR NO CARTOLA GLOBO (1 CLIQUE)", type="primary", use_container_width=True, key="btn_globo_autoscale"):
+                            with st.spinner("Enviando escalação diretamente para os servidores da Globo..."):
+                                success, resp_globo = api.save_time_to_globo(
+                                    token=token_active,
+                                    esquema_name=chosen_formation,
+                                    captain_id=int(capitao_row['ID']),
+                                    starters_ids=selected_df['ID'].tolist(),
+                                    reserves_dict=reservas
+                                )
+                                if success:
+                                    st.balloons()
+                                    st.success("🎉 **SUCESSO ABSOLUTO!** Seu time M1TOS EC foi escalado diretamente na sua conta oficial do Cartola FC!")
+                                    save_official_team(
+                                        rodada=rodada_num,
+                                        starters_df=selected_df,
+                                        captain_id=int(capitao_row['ID']),
+                                        reserves_dict=reservas,
+                                        super_sub_pos="Meia" if "Acevedo" in str(reservas) else "Atacante"
+                                    )
+                                    st.rerun()
+                                else:
+                                    st.error(f"❌ Erro ao enviar para o Cartola: {resp_globo}")
+                else:
+                    act_col1, act_col2 = st.columns([3, 2])
+                    with act_col1:
+                        st.write("🛡️ **Pronto para a rodada?** Salve este time para travar sua escalação oficial e acompanhar parciais ao vivo.")
+                    with act_col2:
+                        if st.button(f"💾 SALVAR COMO TIME OFICIAL (R{rodada_num})", type="primary", use_container_width=True, key="btn_save_advisor"):
+                            best_res_pos_calc = None
+                            max_up = -1.0
+                            for pos, r in reservas.items():
+                                up = r.get('Upside', r.get('Media_Ajustada', 0))
+                                if up > max_up:
+                                    max_up = up
+                                    best_res_pos_calc = pos
+                                    
+                            save_official_team(
+                                rodada=rodada_num,
+                                starters_df=selected_df,
+                                captain_id=int(capitao_row['ID']),
+                                reserves_dict=reservas,
+                                super_sub_pos=best_res_pos_calc or "Atacante"
+                            )
+                            st.success(f"✅ Time da Rodada {rodada_num} salvo como Oficial com sucesso!")
+                            st.rerun()
+
 
         with tab_cards:
             # ATAQUE
