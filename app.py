@@ -654,18 +654,18 @@ def render_live_player_card(p, pinfo=None, is_captain=False, is_super_sub=False)
         # Comparativo: Desempenho Real vs. xP Projetado
         diff = pts_calc - xp_expected
         if diff > 0.5:
-            perf_html = f'<div style="font-size:0.68rem;font-weight:800;color:#34d399;margin-top:2px;">🔥 +{diff:.2f} acima do xP ({xp_expected:.2f})</div>'
+            perf_html = f'<div style="font-size:0.65rem;font-weight:800;color:#34d399;margin-top:2px;">🔥 +{diff:.2f} vs xP ({xp_expected:.1f})</div>'
         elif diff < -0.5:
-            perf_html = f'<div style="font-size:0.68rem;font-weight:800;color:#f87171;margin-top:2px;">❄️ {diff:.2f} abaixo do xP ({xp_expected:.2f})</div>'
+            perf_html = f'<div style="font-size:0.65rem;font-weight:800;color:#f87171;margin-top:2px;">❄️ {diff:.2f} vs xP ({xp_expected:.1f})</div>'
         else:
-            perf_html = f'<div style="font-size:0.68rem;font-weight:800;color:#fbbf24;margin-top:2px;">🎯 Na meta do xP ({xp_expected:.2f})</div>'
+            perf_html = f'<div style="font-size:0.65rem;font-weight:800;color:#fbbf24;margin-top:2px;">🎯 Na meta xP ({xp_expected:.1f})</div>'
 
-        # Indicador de Valorização ao Vivo
+        # Indicador de Valorização ao Vivo (Compacto)
         diff_val = pts_bruto - min_val
         if diff_val >= 0:
-            val_html = f'<div style="font-size:0.67rem;font-weight:800;color:#34d399;margin-top:2px;background:rgba(52,211,153,0.1);padding:2px 4px;border-radius:4px;border:1px solid rgba(52,211,153,0.3);">📈 VALORIZANDO (+{diff_val:.2f} pts | Mín: {min_val:.2f})</div>'
+            val_html = f'<div style="font-size:0.65rem;font-weight:800;color:#34d399;margin-top:2px;background:rgba(52,211,153,0.12);padding:2px 4px;border-radius:4px;border:1px solid rgba(52,211,153,0.3);">📈 +{diff_val:.2f} (Mín {min_val:.1f})</div>'
         else:
-            val_html = f'<div style="font-size:0.67rem;font-weight:800;color:#f87171;margin-top:2px;background:rgba(248,113,113,0.1);padding:2px 4px;border-radius:4px;border:1px solid rgba(248,113,113,0.3);">📉 DESVALORIZANDO (Faltam {abs(diff_val):.2f} pts | Mín: {min_val:.2f})</div>'
+            val_html = f'<div style="font-size:0.65rem;font-weight:800;color:#f87171;margin-top:2px;background:rgba(248,113,113,0.12);padding:2px 4px;border-radius:4px;border:1px solid rgba(248,113,113,0.3);">📉 -{abs(diff_val):.2f} (Mín {min_val:.1f})</div>'
 
         score_box_html = (
             f'<div class="live-score-box">'
@@ -702,15 +702,16 @@ def render_live_player_card(p, pinfo=None, is_captain=False, is_super_sub=False)
         chips_html = "".join(scout_chips) if scout_chips else '<span style="font-size:0.70rem;color:#94a3b8;">Em campo</span>'
 
     else:
-        val_meta_html = f'<div style="font-size:0.67rem;font-weight:700;color:#38bdf8;margin-top:2px;">💵 Mínimo p/ Valorizar: {min_val:.2f} pts</div>'
+        val_meta_html = f'<div style="font-size:0.65rem;font-weight:700;color:#38bdf8;margin-top:2px;">💵 Mínimo: {min_val:.2f} pts</div>'
         score_box_html = (
             f'<div class="live-score-box">'
             f'<div class="live-score-waiting">⏳ AGUARDANDO</div>'
-            f'<div style="font-size:0.68rem;font-weight:700;color:#94a3b8;margin-top:2px;">⚡ xP: {xp_expected:.2f} pts</div>'
+            f'<div style="font-size:0.65rem;font-weight:700;color:#94a3b8;margin-top:2px;">⚡ xP: {xp_expected:.2f} pts</div>'
             f'{val_meta_html}'
             f'</div>'
         )
         chips_html = '<span style="font-size:0.70rem;color:#64748b;">Jogo a iniciar</span>'
+
 
 
     html = (
@@ -1229,21 +1230,22 @@ def main():
             col_metric1, col_metric2 = st.columns(2)
             with col_metric1:
                 st.html(f'''
-                <div class="metric-card" style="background:linear-gradient(135deg, #1e3a8a, #0f172a); border:2px solid #38bdf8;">
-                    <div class="metric-title" style="color:#38bdf8;">⚡ PONTUAÇÃO PARCIAL TOTAL DO M1TOS EC</div>
-                    <div class="metric-value" style="font-size:2.2rem; color:#f8fafc;">{total_live_pts:.2f} <span style="font-size:1.1rem; color:#38bdf8;">pts</span></div>
-                    <div style="font-size:0.80rem; color:#94a3b8; margin-top:4px;">{jogadores_jogando} de 12 atletas já entraram em campo</div>
+                <div class="metric-card" style="background:linear-gradient(135deg, #1e3a8a, #0f172a); border:2px solid #38bdf8; min-height:105px; display:flex; flex-direction:column; justify-content:center; box-sizing:border-box;">
+                    <div class="metric-title" style="color:#38bdf8; font-size:0.75rem;">⚡ PONTUAÇÃO PARCIAL TOTAL</div>
+                    <div class="metric-value" style="font-size:1.9rem; color:#f8fafc; line-height:1.2;">{total_live_pts:.2f} <span style="font-size:1.0rem; color:#38bdf8;">pts</span></div>
+                    <div style="font-size:0.75rem; color:#94a3b8; margin-top:3px;">{jogadores_jogando} de 12 atletas em campo</div>
                 </div>
                 ''')
             with col_metric2:
-                val_pill = f'<span style="color:#34d399;font-weight:700;">🟢 {valorizando_count} valorizando</span> | <span style="color:#f87171;font-weight:700;">🔴 {desvalorizando_count} desvalorizando</span>' if jogadores_jogando > 0 else '<span style="color:#94a3b8;">Aguardando início dos jogos</span>'
+                val_pill = f'<span style="color:#34d399;font-weight:800;">🟢 {valorizando_count}</span> <span style="color:#64748b;font-size:1.2rem;">/</span> <span style="color:#f87171;font-weight:800;">🔴 {desvalorizando_count}</span>' if jogadores_jogando > 0 else '<span style="color:#94a3b8;font-size:1.1rem;">Aguardando jogos</span>'
                 st.html(f'''
-                <div class="metric-card" style="background:linear-gradient(135deg, #064e3b, #0f172a); border:2px solid #34d399;">
-                    <div class="metric-title" style="color:#34d399;">📈 STATUS DE VALORIZAÇÃO EM TEMPO REAL</div>
-                    <div class="metric-value" style="font-size:1.6rem; color:#f8fafc; margin-top:6px;">{val_pill}</div>
-                    <div style="font-size:0.80rem; color:#94a3b8; margin-top:6px;">Calculado contra o Mínimo para Valorizar de cada atleta</div>
+                <div class="metric-card" style="background:linear-gradient(135deg, #064e3b, #0f172a); border:2px solid #34d399; min-height:105px; display:flex; flex-direction:column; justify-content:center; box-sizing:border-box;">
+                    <div class="metric-title" style="color:#34d399; font-size:0.75rem;">📈 VALORIZAÇÃO EM TEMPO REAL</div>
+                    <div class="metric-value" style="font-size:1.9rem; color:#f8fafc; line-height:1.2;">{val_pill}</div>
+                    <div style="font-size:0.75rem; color:#94a3b8; margin-top:3px;">Atletas acima / abaixo do mínimo</div>
                 </div>
                 ''')
+
 
 
             # Checagem ao vivo do Reserva de Luxo
