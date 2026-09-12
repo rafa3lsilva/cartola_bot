@@ -785,22 +785,10 @@ def main():
                 official_data = load_official_team(rodada=selected_history_round)
                 official_round = selected_history_round
 
-        default_budget = float(patrimonio_real)
+        budget = float(patrimonio_real)
 
         if app_mode == "simulador":
-            # Seção 2: Cofre
-            st.html('<div class="sidebar-section">💰 PATRIMÔNIO DISPONÍVEL</div>')
-            budget = st.number_input(
-                "Saldo em Cartoletas (C$):",
-                min_value=50.0,
-                max_value=400.0,
-                value=default_budget,
-                step=1.0,
-                format="%.2f",
-                help="Total de cartoletas disponíveis para escalar o time titular do M1TOS EC."
-            )
-            
-            # Seção 3: Estratégia Tática
+            # Seção 2: Estratégia Tática
             st.html('<div class="sidebar-section">📋 ESTRATÉGIA TÁTICA</div>')
             config_preview = load_config()
             available_formations = ["auto"] + list(config_preview.get('formations', {}).keys())
@@ -825,13 +813,13 @@ def main():
             max_per_club = 5
 
         # Conexão com a API
-
         st.html('<div class="sidebar-section">🔄 ATUALIZAÇÃO DA API</div>')
         force_refresh = st.checkbox("Forçar atualização ao vivo da Globo", value=False)
         
         if app_mode == "simulador":
             st.markdown("")
             run_button = st.button("🚀 OTIMIZAR NOVO TIME", type="primary", use_container_width=True)
+
         
         # Placeholder para o botão de exportação na Sidebar
         export_sidebar_placeholder = st.sidebar.empty()
@@ -971,8 +959,39 @@ def main():
         with c4:
             st.html(f'<div class="metric-card"><div class="metric-title">📋 Formação Tática</div><div class="metric-value">{chosen_formation}</div></div>')
 
+        # Banner de Ação Principal (Escalar no Cartola / Salvar)
+        st.markdown("")
+        banner_c1, banner_c2 = st.columns([3, 2])
+        with banner_c1:
+            st.markdown(f"🛡️ **Time M1TOS EC • Rodada {rodada_num}** | Projeção: **{total_xp:.2f} pts** | Custo: **C$ {total_cost:.2f}** | Capitão: **👑 {capitao_nome}**")
+        with banner_c2:
+            if st.button("🚀 ESCALAR NO CARTOLA GLOBO (1 CLIQUE)", type="primary", use_container_width=True, key="btn_main_autoscale_banner"):
+                with st.spinner("Enviando escalação diretamente para a Globo..."):
+                    token_to_use = active_token or (st.secrets.get("cartola_token", "") if hasattr(st, "secrets") else "")
+                    success, resp_globo = api.save_time_to_globo(
+                        token=token_to_use,
+                        esquema_name=chosen_formation,
+                        captain_id=int(capitao_row['ID']),
+                        starters_ids=selected_df['ID'].tolist(),
+                        reserves_dict=reservas
+                    )
+                    if success:
+                        st.balloons()
+                        st.success("🎉 **SUCESSO ABSOLUTO!** O time foi escalado diretamente na sua conta oficial do Cartola FC!")
+                        save_official_team(
+                            rodada=rodada_num,
+                            starters_df=selected_df,
+                            captain_id=int(capitao_row['ID']),
+                            reserves_dict=reservas,
+                            super_sub_pos="Meia" if "Acevedo" in str(reservas) else "Atacante"
+                        )
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Erro ao enviar para o Cartola: {resp_globo}")
+
         # 2. Alternador de Visualização Expandido
         tab_market, tab_consult, tab_cards, tab_live, tab_table, tab_comp = st.tabs([
+
             "🛒 Mercado & Tags",
             "🔍 Consultor Tático",
             "🏟️ Escalação Tática (Cards)", 
@@ -1218,6 +1237,45 @@ def main():
 
                 super_r = reservas[best_res_pos]
                 st.success(f"🌟 **Marque a estrelinha de Reserva de Luxo no Cartola em:** **{super_r['Nome']} ({super_r['Posicao']} - {super_r['Clube']})** | Teto: **{super_r.get('Upside', 0):.2f} pts**!")
+
+                st.markdown("")
+                tab_btn1, tab_btn2 = st.columns(2)
+                with tab_btn1:
+                    if st.button(f"💾 SALVAR NO APP (RODADA {rodada_num})", use_container_width=True, key="btn_save_tab_cards"):
+                        save_official_team(
+                            rodada=rodada_num,
+                            starters_df=selected_df,
+                            captain_id=int(capitao_row['ID']),
+                            reserves_dict=reservas,
+                            super_sub_pos=best_res_pos or "Atacante"
+                        )
+                        st.success(f"✅ Time da Rodada {rodada_num} salvo com sucesso!")
+                        st.rerun()
+                with tab_btn2:
+                    if st.button("🚀 ESCALAR NO CARTOLA GLOBO (1 CLIQUE)", type="primary", use_container_width=True, key="btn_globo_autoscale_cards"):
+                        with st.spinner("Enviando escalação diretamente para a Globo..."):
+                            token_to_use = active_token or (st.secrets.get("cartola_token", "") if hasattr(st, "secrets") else "")
+                            success, resp_globo = api.save_time_to_globo(
+                                token=token_to_use,
+                                esquema_name=chosen_formation,
+                                captain_id=int(capitao_row['ID']),
+                                starters_ids=selected_df['ID'].tolist(),
+                                reserves_dict=reservas
+                            )
+                            if success:
+                                st.balloons()
+                                st.success("🎉 **SUCESSO ABSOLUTO!** O time foi escalado diretamente na sua conta oficial do Cartola FC!")
+                                save_official_team(
+                                    rodada=rodada_num,
+                                    starters_df=selected_df,
+                                    captain_id=int(capitao_row['ID']),
+                                    reserves_dict=reservas,
+                                    super_sub_pos="Meia" if "Acevedo" in str(reservas) else "Atacante"
+                                )
+                                st.rerun()
+                            else:
+                                st.error(f"❌ Erro ao enviar para o Cartola: {resp_globo}")
+
 
         with tab_live:
             # 🔴 PARCIAIS AO VIVO
