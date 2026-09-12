@@ -965,7 +965,7 @@ def main():
         with banner_c1:
             st.markdown(f"🛡️ **Time M1TOS EC • Rodada {rodada_num}** | Projeção: **{total_xp:.2f} pts** | Custo: **C$ {total_cost:.2f}** | Capitão: **👑 {capitao_nome}**")
         with banner_c2:
-            if st.button("🚀 ESCALAR NO CARTOLA GLOBO (1 CLIQUE)", type="primary", use_container_width=True, key="btn_main_autoscale_banner"):
+            if st.button("🚀 ESCALAR NO CARTOLA GLOBO", type="primary", use_container_width=True, key="btn_main_autoscale_banner"):
                 with st.spinner("Enviando escalação diretamente para a Globo..."):
                     token_to_use = active_token or (st.secrets.get("cartola_token", "") if hasattr(st, "secrets") else "")
                     success, resp_globo = api.save_time_to_globo(
@@ -1125,7 +1125,7 @@ def main():
                             st.success(f"✅ Time da Rodada {rodada_num} salvo com sucesso!")
                             st.rerun()
                     with btn_c2:
-                        if st.button(f"🚀 ESCALAR NO CARTOLA GLOBO (1 CLIQUE)", type="primary", use_container_width=True, key="btn_globo_autoscale"):
+                        if st.button(f"🚀 ESCALAR NO CARTOLA GLOBO", type="primary", use_container_width=True, key="btn_globo_autoscale"):
                             with st.spinner("Enviando escalação diretamente para os servidores da Globo..."):
                                 success, resp_globo = api.save_time_to_globo(
                                     token=token_active,
@@ -1252,7 +1252,7 @@ def main():
                         st.success(f"✅ Time da Rodada {rodada_num} salvo com sucesso!")
                         st.rerun()
                 with tab_btn2:
-                    if st.button("🚀 ESCALAR NO CARTOLA GLOBO (1 CLIQUE)", type="primary", use_container_width=True, key="btn_globo_autoscale_cards"):
+                    if st.button("🚀 ESCALAR NO CARTOLA GLOBO", type="primary", use_container_width=True, key="btn_globo_autoscale_cards"):
                         with st.spinner("Enviando escalação diretamente para a Globo..."):
                             token_to_use = active_token or (st.secrets.get("cartola_token", "") if hasattr(st, "secrets") else "")
                             success, resp_globo = api.save_time_to_globo(

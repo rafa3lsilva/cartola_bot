@@ -153,17 +153,37 @@ class CartolaAPI:
             'Atacante': 5
         }
         
+        def _extract_id(val):
+            if val is None:
+                return None
+            if hasattr(val, 'get'):
+                extracted = val.get('ID', val)
+                try:
+                    return int(extracted)
+                except Exception:
+                    pass
+            if hasattr(val, '__getitem__') and not isinstance(val, (str, bytes)):
+                try:
+                    return int(val['ID'])
+                except Exception:
+                    pass
+            return int(val)
+
         reservas_payload = {}
         if reserves_dict:
             for pos_name, r in reserves_dict.items():
                 pos_code = str(pos_id_map.get(pos_name, 1))
-                r_id = int(r.get('ID', r) if isinstance(r, dict) else r)
-                reservas_payload[pos_code] = r_id
+                try:
+                    r_id = _extract_id(r)
+                    if r_id is not None:
+                        reservas_payload[pos_code] = r_id
+                except Exception as e:
+                    logger.warning(f"Erro ao extrair ID da reserva {pos_name}: {e}")
 
         payload = {
             "esquema": esquema_id,
-            "capitao": int(captain_id),
-            "atletas": [int(i) for i in starters_ids],
+            "capitao": _extract_id(captain_id),
+            "atletas": [_extract_id(i) for i in starters_ids if i is not None],
             "reservas": reservas_payload
         }
         

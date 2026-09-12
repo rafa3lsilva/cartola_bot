@@ -1,18 +1,18 @@
 ﻿Tipo,Posição,Jogador,Clube,Preço (C$),xP Projetado,Pontos Reais,Saldo (Real - xP),Desempenho,Scouts na Rodada
-Titular,Lateral,Matheus Bidu,COR,12.06,8.65,,,⏳ Aguardando Jogo,-
-Titular,Zagueiro,João Pedro,COR,8.56,7.46,,,⏳ Aguardando Jogo,-
-Titular,Meia,Garro,COR,9.82,7.81,,,⏳ Aguardando Jogo,-
-Titular,Atacante,Samuel Lino,FLA,13.77,11.16,,,⏳ Aguardando Jogo,-
-Titular,Meia,Arrascaeta,FLA,13.86,7.36,,,⏳ Aguardando Jogo,-
-Titular,Lateral,Renê,FLU,9.1,8.92,,,⏳ Aguardando Jogo,-
-Titular,Atacante,👑 Canobbio [C],FLU,12.17,18.43,,,⏳ Aguardando Jogo,-
-Titular,Zagueiro,Ignácio,FLU,8.11,7.73,,,⏳ Aguardando Jogo,-
-Titular,Goleiro,Pedro Morisco,CFC,8.6,9.03,,,⏳ Aguardando Jogo,-
-Titular,Atacante,Pedro,FLA,15.51,12.1,,,⏳ Aguardando Jogo,-
-Titular,Meia,Lucas Paquetá,FLA,12.86,7.38,,,⏳ Aguardando Jogo,-
-Titular,Técnico,Leonardo Jardim,FLA,13.56,7.19,,,⏳ Aguardando Jogo,-
-Reserva,Goleiro,Kauê,COR,4.61,7.31,,,⏳ Aguardando Jogo,-
-Reserva,Lateral,JP Chermont,CFC,5.41,6.34,,,⏳ Aguardando Jogo,-
-Reserva,Zagueiro,Rodrigo Moledo,CFC,5.94,6.3,,,⏳ Aguardando Jogo,-
-Reserva,Meia,Yago Felipe,CHA,9.55,5.04,,,⏳ Aguardando Jogo,-
-Reserva,Atacante,⭐ Breno Lopes [Reserva Luxo],CFC,9.03,7.92,,,⏳ Aguardando Jogo,-
+Titular,Lateral,Matheus Bidu,COR,12.06,8.65,12.1,3.45,🔥 Superou xP,"DS:2, FC:1, FS:3, G:1, I:1"
+Titular,Meia,Garro,COR,9.82,7.81,2.2,-5.61,❄️ Ficou Abaixo,"FC:1, FD:1, FF:1, FS:1"
+Titular,Zagueiro,João Pedro,COR,8.56,7.46,1.0,-6.46,❄️ Ficou Abaixo,FS:2
+Titular,Meia,Arrascaeta,FLA,13.86,7.36,7.2,-0.16,🎯 Na Meta,"A:1, CA:1, DS:2, FC:2, FF:1"
+Titular,Atacante,Samuel Lino,FLA,13.77,11.16,17.0,5.84,🔥 Superou xP,"DS:4, FC:4, FD:1, FT:1, G:1"
+Titular,Lateral,Renê,FLU,9.1,8.92,15.2,6.28,🔥 Superou xP,"DS:6, FC:1, FS:3, SG:1"
+Titular,Atacante,👑 Canobbio [C],FLU,12.17,18.43,8.7,-9.73,❄️ Ficou Abaixo,"DS:3, FC:2, FS:4, I:1"
+Titular,Zagueiro,Ignácio,FLU,8.11,7.73,6.5,-1.23,❄️ Ficou Abaixo,"CA:1, DS:1, FC:1, FF:1, FS:1, SG:1"
+Titular,Goleiro,Pedro Morisco,CFC,8.6,9.03,3.7,-5.33,❄️ Ficou Abaixo,"DE:4, FS:1, GS:2"
+Titular,Atacante,Pedro,FLA,15.51,12.1,6.3,-5.8,❄️ Ficou Abaixo,"DS:1, FC:1, FD:3, FF:2, I:1"
+Titular,Meia,Lucas Paquetá,FLA,12.86,7.38,9.8,2.42,🔥 Superou xP,"DS:5, FC:1, FF:2, FS:2"
+Titular,Técnico,Leonardo Jardim,FLA,13.56,7.19,8.45,1.26,🔥 Superou xP,V:1
+Reserva,Goleiro,Kauê,COR,4.61,7.31,3.2,-4.11,❄️ Ficou Abaixo,"DE:4, GS:2"
+Reserva,Lateral,JP Chermont,CFC,5.41,6.34,0.5,-5.84,❄️ Ficou Abaixo,"CA:1, DS:1, FC:4, FD:1"
+Reserva,Zagueiro,Rodrigo Moledo,CFC,5.94,6.3,3.5,-2.8,❄️ Ficou Abaixo,"DS:1, FD:1, FF:1"
+Reserva,Meia,Yago Felipe,CHA,9.55,5.04,3.1,-1.94,❄️ Ficou Abaixo,"CA:1, DS:2, FC:2, FD:1, FS:1"
+Reserva,Atacante,⭐ Breno Lopes [Reserva Luxo],CFC,9.03,7.92,2.3,-5.62,❄️ Ficou Abaixo,"DS:1, FF:1"
