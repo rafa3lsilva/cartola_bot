@@ -729,6 +729,25 @@ def render_live_player_card(p, pinfo=None, is_captain=False, is_super_sub=False)
     )
     st.html(html)
 
+def handle_globo_escalacao_result(success, resp_globo, rodada_num, selected_df, capitao_row, reservas):
+    if success:
+        st.balloons()
+        st.success("🎉 **SUCESSO ABSOLUTO!** O time foi escalado diretamente na sua conta oficial do Cartola FC!")
+        save_official_team(
+            rodada=rodada_num,
+            starters_df=selected_df,
+            captain_id=int(capitao_row['ID']),
+            reserves_dict=reservas,
+            super_sub_pos="Meia" if "Acevedo" in str(reservas) else "Atacante"
+        )
+        st.rerun()
+    else:
+        if "Expired" in str(resp_globo) or "não autorizado" in str(resp_globo) or "401" in str(resp_globo):
+            st.error("❌ **Token da Globo Expirado:** A Globo invalida os tokens de autenticação a cada 60 minutos.")
+            st.info("💡 **Como renovar em 10 segundos:**\n1. No navegador, acesse o Cartola e aperte **F12** -> aba **Rede**\n2. Copie o valor do cabeçalho **`Authorization`** (`Bearer eyJ...`)\n3. Cole no menu lateral em **'🔑 Renovar Token Globo'** e clique em **Atualizar Token**!")
+        else:
+            st.error(f"❌ Erro ao enviar para o Cartola: {resp_globo}")
+
 def main():
     st.html('<div class="main-header">🛡️ M1TOS EC • Cartola Pro</div><div class="sub-header">Otimizador Tático Inteligente com Pontuação Esperada (xP) & Reserva de Luxo</div>')
 
@@ -768,6 +787,15 @@ def main():
             <div class="market-status-pill" style="background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.3);">💰 PATRIMÔNIO: C$ {patrimonio_real:.2f}</div>
         </div>
         ''')
+
+        with st.sidebar.expander("🔑 Renovar Token Globo (Sessão)", expanded=False):
+            st.caption("O token da Globo dura 1 hora. Se expirar, cole o novo token aqui:")
+            token_in = st.text_input("Novo Bearer Token:", type="password", key="sidebar_token_renewal_input")
+            if st.button("🔄 Atualizar Token na Sessão", use_container_width=True, key="btn_apply_token"):
+                if token_in.strip():
+                    st.session_state["cartola_token"] = token_in.strip()
+                    st.success("Token atualizado!")
+                    st.rerun()
 
         # Seção 1: Modo de Operação com Rodada Dinâmica e Histórico
         st.html('<div class="sidebar-section">📌 MODO DE OPERAÇÃO</div>')
@@ -975,19 +1003,7 @@ def main():
                         starters_ids=selected_df['ID'].tolist(),
                         reserves_dict=reservas
                     )
-                    if success:
-                        st.balloons()
-                        st.success("🎉 **SUCESSO ABSOLUTO!** O time foi escalado diretamente na sua conta oficial do Cartola FC!")
-                        save_official_team(
-                            rodada=rodada_num,
-                            starters_df=selected_df,
-                            captain_id=int(capitao_row['ID']),
-                            reserves_dict=reservas,
-                            super_sub_pos="Meia" if "Acevedo" in str(reservas) else "Atacante"
-                        )
-                        st.rerun()
-                    else:
-                        st.error(f"❌ Erro ao enviar para o Cartola: {resp_globo}")
+                    handle_globo_escalacao_result(success, resp_globo, rodada_num, selected_df, capitao_row, reservas)
 
         # 2. Alternador de Visualização Expandido
         tab_market, tab_consult, tab_cards, tab_live, tab_table, tab_comp = st.tabs([
@@ -1134,19 +1150,7 @@ def main():
                                     starters_ids=selected_df['ID'].tolist(),
                                     reserves_dict=reservas
                                 )
-                                if success:
-                                    st.balloons()
-                                    st.success("🎉 **SUCESSO ABSOLUTO!** Seu time M1TOS EC foi escalado diretamente na sua conta oficial do Cartola FC!")
-                                    save_official_team(
-                                        rodada=rodada_num,
-                                        starters_df=selected_df,
-                                        captain_id=int(capitao_row['ID']),
-                                        reserves_dict=reservas,
-                                        super_sub_pos="Meia" if "Acevedo" in str(reservas) else "Atacante"
-                                    )
-                                    st.rerun()
-                                else:
-                                    st.error(f"❌ Erro ao enviar para o Cartola: {resp_globo}")
+                                handle_globo_escalacao_result(success, resp_globo, rodada_num, selected_df, capitao_row, reservas)
                 else:
                     act_col1, act_col2 = st.columns([3, 2])
                     with act_col1:
@@ -1262,19 +1266,7 @@ def main():
                                 starters_ids=selected_df['ID'].tolist(),
                                 reserves_dict=reservas
                             )
-                            if success:
-                                st.balloons()
-                                st.success("🎉 **SUCESSO ABSOLUTO!** O time foi escalado diretamente na sua conta oficial do Cartola FC!")
-                                save_official_team(
-                                    rodada=rodada_num,
-                                    starters_df=selected_df,
-                                    captain_id=int(capitao_row['ID']),
-                                    reserves_dict=reservas,
-                                    super_sub_pos="Meia" if "Acevedo" in str(reservas) else "Atacante"
-                                )
-                                st.rerun()
-                            else:
-                                st.error(f"❌ Erro ao enviar para o Cartola: {resp_globo}")
+                            handle_globo_escalacao_result(success, resp_globo, rodada_num, selected_df, capitao_row, reservas)
 
 
         with tab_live:
