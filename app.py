@@ -914,7 +914,7 @@ def main():
         official_reserves_ids = official_data.get('reserves_ids', {})
         official_super_sub_pos = official_data.get('super_sub_pos', 'Atacante')
         
-        target_ids = official_starters_ids + list(official_reserves_ids.values())
+        target_ids = (official_starters_ids + list(official_reserves_ids.values())) if app_mode == "oficial" else None
         
         with st.spinner("Processando dados dos atletas e confrontos..."):
             df = scorer.process_data(mercado_data, partidas_data, target_athlete_ids=target_ids)
@@ -967,6 +967,11 @@ def main():
 
                 reservas = optimizer.get_reservas(df, selected_df)
 
+            # Verificar se o usuário fez substituições personalizadas manuais na sessão
+            if "custom_starters_df" in st.session_state and st.session_state.get("custom_mode_owner") == app_mode:
+                selected_df = st.session_state["custom_starters_df"]
+                reservas = optimizer.get_reservas(df, selected_df)
+
         reservas = reservas or {}
 
         capitao_row = selected_df[selected_df['Is_Capitao']].iloc[0] if 'Is_Capitao' in selected_df.columns and selected_df['Is_Capitao'].any() else selected_df.iloc[0]
@@ -975,6 +980,74 @@ def main():
         total_xp = selected_df['Media_Ajustada'].sum() + capitao_extra
         total_cost = selected_df['Preco'].sum()
         budget_left = budget - total_cost
+
+        # Ferramenta de Substituição Manual & Escolha de Capitão
+        with st.expander("⚙️ Personalizar Escalação (Substituir Titulares & Mudar Capitão)", expanded=False):
+            st.caption("Substitua qualquer atleta titular por outro jogador provável do mercado ou troque o capitão da equipe:")
+            sub_col1, sub_col2, sub_col3 = st.columns([2.5, 3.5, 1.5])
+            with sub_col1:
+                titular_names = selected_df['Nome'].tolist()
+                titular_out_name = st.selectbox(
+                    "Titular que vai sair:",
+                    options=titular_names,
+                    key="select_titular_out"
+                )
+            
+            out_rows = selected_df[selected_df['Nome'] == titular_out_name]
+            if not out_rows.empty:
+                out_row = out_rows.iloc[0]
+                out_pos = out_row['Posicao']
+                
+                with sub_col2:
+                    market_pos_df = df[df['Posicao'] == out_pos].sort_values(by='Media_Ajustada', ascending=False)
+                    available_market = market_pos_df[~market_pos_df['ID'].isin(selected_df['ID'])].copy()
+                    cand_options = available_market['Nome'].tolist()
+                    if cand_options:
+                        cand_in_name = st.selectbox(
+                            f"Substituto Provável ({out_pos}):",
+                            options=cand_options,
+                            format_func=lambda n: f"{n} ({available_market[available_market['Nome']==n]['Clube'].values[0]} • C$ {available_market[available_market['Nome']==n]['Preco'].values[0]:.2f} • xP {available_market[available_market['Nome']==n]['Media_Ajustada'].values[0]:.2f})",
+                            key="select_market_in"
+                        )
+                    else:
+                        cand_in_name = None
+                        st.warning("Nenhum atleta provável disponível nesta posição.")
+                        
+                with sub_col3:
+                    st.write("")
+                    st.write("")
+                    if cand_in_name and st.button("🔄 Substituir", use_container_width=True, type="primary", key="btn_apply_sub"):
+                        new_player_row = available_market[available_market['Nome'] == cand_in_name].iloc[0].copy()
+                        new_player_row['Is_Capitao'] = bool(out_row.get('Is_Capitao', False))
+                        new_df = selected_df[selected_df['Nome'] != titular_out_name].copy()
+                        new_df = pd.concat([new_df, pd.DataFrame([new_player_row])], ignore_index=True)
+                        st.session_state["custom_starters_df"] = new_df
+                        st.session_state["custom_mode_owner"] = app_mode
+                        st.success(f"✅ {titular_out_name} substituído por {cand_in_name}!")
+                        st.rerun()
+
+            st.markdown("---")
+            cap_c1, cap_c2, cap_c3 = st.columns([3, 2, 2])
+            with cap_c1:
+                current_cap = selected_df[selected_df['Is_Capitao']]['Nome'].values[0] if 'Is_Capitao' in selected_df.columns and selected_df['Is_Capitao'].any() else selected_df.iloc[0]['Nome']
+                new_cap_name = st.selectbox("👑 Mudar Capitão:", options=selected_df['Nome'].tolist(), index=selected_df['Nome'].tolist().index(current_cap) if current_cap in selected_df['Nome'].tolist() else 0, key="select_captain_change")
+            with cap_c2:
+                st.write("")
+                st.write("")
+                if st.button("👑 Definir Capitão", use_container_width=True, key="btn_apply_captain"):
+                    updated_df = selected_df.copy()
+                    updated_df['Is_Capitao'] = (updated_df['Nome'] == new_cap_name)
+                    st.session_state["custom_starters_df"] = updated_df
+                    st.session_state["custom_mode_owner"] = app_mode
+                    st.success(f"👑 Capitão definido: {new_cap_name}!")
+                    st.rerun()
+            with cap_c3:
+                st.write("")
+                st.write("")
+                if "custom_starters_df" in st.session_state:
+                    if st.button("⏪ Resetar Modificações", use_container_width=True, key="btn_reset_custom_team"):
+                        del st.session_state["custom_starters_df"]
+                        st.rerun()
 
         # 1. Cards de Resumo no Topo
         c1, c2, c3, c4 = st.columns(4)
