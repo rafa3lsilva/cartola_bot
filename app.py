@@ -627,8 +627,10 @@ def render_live_player_card(p, pinfo=None, is_captain=False, is_super_sub=False)
     badge_html = super_sub_html if is_super_sub else captain_html
     escudo_html = f'<img src="{escudo}" class="club-crest"/>' if escudo else ''
 
-    # Cálculo da Pontuação Esperada (xP)
+    # Cálculo da Pontuação Esperada (xP) e Mínimo para Valorizar
     xp_expected = p.get('Media_Ajustada', 0.0) * (1.5 if is_captain else 1.0)
+    preco_atleta = float(p.get('Preco', 10.0))
+    min_val = float(p.get('Min_Val', preco_atleta * 0.37))
 
     if has_played:
         pts_bruto = float(pinfo.get('pontuacao', 0.0))
@@ -645,11 +647,19 @@ def render_live_player_card(p, pinfo=None, is_captain=False, is_super_sub=False)
         else:
             perf_html = f'<div style="font-size:0.68rem;font-weight:800;color:#fbbf24;margin-top:2px;">🎯 Na meta do xP ({xp_expected:.2f})</div>'
 
+        # Indicador de Valorização ao Vivo
+        diff_val = pts_bruto - min_val
+        if diff_val >= 0:
+            val_html = f'<div style="font-size:0.67rem;font-weight:800;color:#34d399;margin-top:2px;background:rgba(52,211,153,0.1);padding:2px 4px;border-radius:4px;border:1px solid rgba(52,211,153,0.3);">📈 VALORIZANDO (+{diff_val:.2f} pts | Mín: {min_val:.2f})</div>'
+        else:
+            val_html = f'<div style="font-size:0.67rem;font-weight:800;color:#f87171;margin-top:2px;background:rgba(248,113,113,0.1);padding:2px 4px;border-radius:4px;border:1px solid rgba(248,113,113,0.3);">📉 DESVALORIZANDO (Faltam {abs(diff_val):.2f} pts | Mín: {min_val:.2f})</div>'
+
         score_box_html = (
             f'<div class="live-score-box">'
             f'<div class="live-score-val" style="color:{pts_color};">{pts_calc:+.2f} <span style="font-size:0.8rem;">pts</span></div>'
             f'{sub_txt}'
             f'{perf_html}'
+            f'{val_html}'
             f'</div>'
         )
         
@@ -679,13 +689,16 @@ def render_live_player_card(p, pinfo=None, is_captain=False, is_super_sub=False)
         chips_html = "".join(scout_chips) if scout_chips else '<span style="font-size:0.70rem;color:#94a3b8;">Em campo</span>'
 
     else:
+        val_meta_html = f'<div style="font-size:0.67rem;font-weight:700;color:#38bdf8;margin-top:2px;">💵 Mínimo p/ Valorizar: {min_val:.2f} pts</div>'
         score_box_html = (
             f'<div class="live-score-box">'
             f'<div class="live-score-waiting">⏳ AGUARDANDO</div>'
-            f'<div style="font-size:0.68rem;font-weight:700;color:#38bdf8;margin-top:2px;">⚡ xP Projetado: {xp_expected:.2f} pts</div>'
+            f'<div style="font-size:0.68rem;font-weight:700;color:#94a3b8;margin-top:2px;">⚡ xP: {xp_expected:.2f} pts</div>'
+            f'{val_meta_html}'
             f'</div>'
         )
         chips_html = '<span style="font-size:0.70rem;color:#64748b;">Jogo a iniciar</span>'
+
 
     html = (
         f'<div class="{card_class}">'
@@ -1144,10 +1157,12 @@ def main():
             else:
                 st.caption(f"📡 Dados ao vivo sincronizados com a Globo • {total_pontuados_count} atletas pontuaram na Rodada {active_round}.")
 
-            # Calcular parciais do time
+            # Calcular parciais do time e valorização
             live_rows = []
             total_live_pts = 0.0
             jogadores_jogando = 0
+            valorizando_count = 0
+            desvalorizando_count = 0
             
             # Mapear pontuações por posição para checagem do reserva de luxo
             pos_starter_scores = {'Goleiro': [], 'Lateral': [], 'Zagueiro': [], 'Meia': [], 'Atacante': []}
@@ -1155,6 +1170,8 @@ def main():
             for _, p in selected_df.iterrows():
                 atleta_id_str = str(p.get('ID'))
                 is_cap = (p['Nome'] == capitao_nome)
+                preco_p = float(p.get('Preco', 10.0))
+                min_val_p = float(p.get('Min_Val', preco_p * 0.37))
                 
                 if atleta_id_str in pontuados:
                     pinfo = pontuados[atleta_id_str]
@@ -1164,12 +1181,21 @@ def main():
                     jogadores_jogando += 1
                     status_live = f"🟢 {pts_bruto:.2f} pts"
                     
+                    diff_v = pts_bruto - min_val_p
+                    if diff_v >= 0:
+                        val_str = f"📈 Valorizando (+{diff_v:.2f} pts | Mín: {min_val_p:.2f})"
+                        valorizando_count += 1
+                    else:
+                        val_str = f"📉 Desvalorizando (Faltam {abs(diff_v):.2f} pts | Mín: {min_val_p:.2f})"
+                        desvalorizando_count += 1
+                        
                     scouts_raw = pinfo.get('scout', {})
                     scouts_str = ", ".join([f"{k}:{v}" for k, v in scouts_raw.items()]) if scouts_raw else "Em campo"
                 else:
                     pts_bruto = None
                     pts_calc = 0.0
                     status_live = "⏳ Aguardando jogo"
+                    val_str = f"⏳ Mínimo: {min_val_p:.2f} pts"
                     scouts_str = "-"
 
                 if p['Posicao'] in pos_starter_scores and pts_bruto is not None:
@@ -1182,17 +1208,30 @@ def main():
                     "Clube": p['Clube'],
                     "Status / Pontos": status_live,
                     "Pontos c/ Capitão": f"{pts_calc:.2f} pts" if pts_bruto is not None else "-",
+                    "Valorização / Mínimo": val_str,
                     "Scouts na Partida": scouts_str
                 })
 
-            # Card de Pontuação Parcial Total
-            st.html(f'''
-            <div class="metric-card" style="background:linear-gradient(135deg, #1e3a8a, #0f172a); border:2px solid #38bdf8;">
-                <div class="metric-title" style="color:#38bdf8;">⚡ PONTUAÇÃO PARCIAL TOTAL DO M1TOS EC</div>
-                <div class="metric-value" style="font-size:2.2rem; color:#f8fafc;">{total_live_pts:.2f} <span style="font-size:1.1rem; color:#38bdf8;">pts</span></div>
-                <div style="font-size:0.80rem; color:#94a3b8; margin-top:4px;">{jogadores_jogando} de 12 atletas já entraram em campo</div>
-            </div>
-            ''')
+            # Cards de Métricas Principais (Pontuação e Valorização)
+            col_metric1, col_metric2 = st.columns(2)
+            with col_metric1:
+                st.html(f'''
+                <div class="metric-card" style="background:linear-gradient(135deg, #1e3a8a, #0f172a); border:2px solid #38bdf8;">
+                    <div class="metric-title" style="color:#38bdf8;">⚡ PONTUAÇÃO PARCIAL TOTAL DO M1TOS EC</div>
+                    <div class="metric-value" style="font-size:2.2rem; color:#f8fafc;">{total_live_pts:.2f} <span style="font-size:1.1rem; color:#38bdf8;">pts</span></div>
+                    <div style="font-size:0.80rem; color:#94a3b8; margin-top:4px;">{jogadores_jogando} de 12 atletas já entraram em campo</div>
+                </div>
+                ''')
+            with col_metric2:
+                val_pill = f'<span style="color:#34d399;font-weight:700;">🟢 {valorizando_count} valorizando</span> | <span style="color:#f87171;font-weight:700;">🔴 {desvalorizando_count} desvalorizando</span>' if jogadores_jogando > 0 else '<span style="color:#94a3b8;">Aguardando início dos jogos</span>'
+                st.html(f'''
+                <div class="metric-card" style="background:linear-gradient(135deg, #064e3b, #0f172a); border:2px solid #34d399;">
+                    <div class="metric-title" style="color:#34d399;">📈 STATUS DE VALORIZAÇÃO EM TEMPO REAL</div>
+                    <div class="metric-value" style="font-size:1.6rem; color:#f8fafc; margin-top:6px;">{val_pill}</div>
+                    <div style="font-size:0.80rem; color:#94a3b8; margin-top:6px;">Calculado contra o Mínimo para Valorizar de cada atleta</div>
+                </div>
+                ''')
+
 
             # Checagem ao vivo do Reserva de Luxo
             best_res_pos = None
