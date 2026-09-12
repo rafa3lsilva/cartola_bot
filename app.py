@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import json
+import time
 from datetime import datetime
 
 from cartola_bot.api import CartolaAPI
@@ -740,6 +741,7 @@ def handle_globo_escalacao_result(success, resp_globo, rodada_num, selected_df, 
             reserves_dict=reservas,
             super_sub_pos="Meia" if "Acevedo" in str(reservas) else "Atacante"
         )
+        time.sleep(3.5)
         st.rerun()
     else:
         if "Expired" in str(resp_globo) or "não autorizado" in str(resp_globo) or "401" in str(resp_globo):
