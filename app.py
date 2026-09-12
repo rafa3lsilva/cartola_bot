@@ -6,6 +6,7 @@ import time
 from datetime import datetime
 
 from cartola_bot.api import CartolaAPI
+from cartola_bot.auth_manager import AuthManager
 from cartola_bot.scoring import Scorer
 from cartola_bot.solver import TeamOptimizer
 from cartola_bot.exporter import Exporter
@@ -750,7 +751,100 @@ def handle_globo_escalacao_result(success, resp_globo, rodada_num, selected_df, 
         else:
             st.error(f"❌ Erro ao enviar para o Cartola: {resp_globo}")
 
+def render_login_screen():
+    st.html('''
+    <div style="max-width: 540px; margin: 30px auto 10px auto; padding: 32px 28px; background: linear-gradient(145deg, rgba(15,23,42,0.95), rgba(30,41,59,0.95)); border: 1px solid rgba(56,189,248,0.3); border-radius: 20px; box-shadow: 0 20px 40px rgba(0,0,0,0.6); text-align: center;">
+        <div style="font-size: 3.5rem; margin-bottom: 8px;">🛡️⚽</div>
+        <h1 style="font-size: 1.8rem; font-weight: 800; color: #f8fafc; margin: 0; background: linear-gradient(90deg, #38bdf8, #818cf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">M1TOS EC • Cartola Pro</h1>
+        <p style="color: #94a3b8; font-size: 0.95rem; margin-top: 6px; margin-bottom: 20px;">Conecte sua conta Globo para escalação automática em 1 clique e gestão tática inteligente.</p>
+    </div>
+    ''')
+    
+    col_l, col_center, col_r = st.columns([1, 2.2, 1])
+    with col_center:
+        with st.container():
+            st.markdown("### 🔐 Acesso à Conta Globo")
+            email_input = st.text_input("📧 E-mail Globo:", placeholder="seu_email@globo.com", key="gateway_email_input")
+            password_input = st.text_input("🔒 Senha da Conta Globo:", type="password", placeholder="••••••••", key="gateway_pass_input")
+            remember_session = st.checkbox("💾 Salvar sessão na nuvem (Google Sheets)", value=True, help="Mantém você conectado entre diferentes visitas e dispositivos sem precisar redigitar sua senha.")
+            
+            if st.button("⚽ ENTRAR NA CONTA GLOBO", type="primary", use_container_width=True, key="gateway_btn_login"):
+                if not email_input.strip() or not password_input.strip():
+                    st.warning("⚠️ Preencha seu e-mail e senha para continuar.")
+                else:
+                    with st.spinner("Conectando aos servidores da Globo e obtendo dados do Cartola..."):
+                        success, res = AuthManager.login_with_credentials(email_input, password_input)
+                        if success:
+                            AuthManager.save_session(res, save_to_cloud=remember_session)
+                            st.session_state["cartola_session"] = res
+                            st.session_state["cartola_token"] = res["token"]
+                            st.session_state["guest_mode"] = False
+                            st.balloons()
+                            st.success(f"🎉 **Login realizado com sucesso!** Bem-vindo, **{res.get('team_name', 'M1TOS EC')}**!")
+                            time.sleep(1.8)
+                            st.rerun()
+                        else:
+                            st.error(f"❌ {res}")
+            
+            st.markdown("")
+            with st.expander("🔑 Opções Avançadas / Entrar com Token ou Cookie GLBID"):
+                st.caption("Se sua conta possui verificação em 2 etapas (2FA) na Globo, você pode colar seu token ou cookie GLBID diretamente:")
+                token_or_glbid = st.text_input("Token Bearer ou Cookie GLBID:", type="password", key="gateway_manual_token_input")
+                if st.button("Conectar com Token", use_container_width=True, key="gateway_btn_do_token"):
+                    if token_or_glbid.strip():
+                        with st.spinner("Validando token com a API do Cartola..."):
+                            valid, team_info = AuthManager.validate_token(token_or_glbid.strip())
+                            if valid:
+                                sess = {
+                                    "email": email_input.strip() or "usuario@globo.com",
+                                    "token": token_or_glbid.strip(),
+                                    "glbid": token_or_glbid.strip(),
+                                    "authenticated_at": datetime.now().isoformat(),
+                                    "team_name": team_info.get("nome", "M1TOS EC") if team_info else "M1TOS EC",
+                                    "patrimonio": float(team_info.get("patrimonio", 141.66)) if team_info else 141.66
+                                }
+                                AuthManager.save_session(sess, save_to_cloud=remember_session)
+                                st.session_state["cartola_session"] = sess
+                                st.session_state["cartola_token"] = sess["token"]
+                                st.session_state["guest_mode"] = False
+                                st.success(f"🎉 Conectado ao time **{sess['team_name']}**!")
+                                time.sleep(1.2)
+                                st.rerun()
+                            else:
+                                st.error("❌ Token ou cookie inválido ou expirado.")
+
+            st.markdown("---")
+            if st.button("👀 Continuar como Visitante (Modo Consulta)", use_container_width=True, key="gateway_btn_guest"):
+                st.session_state["guest_mode"] = True
+                st.rerun()
+
 def main():
+    # 1. Checar Sessão de Autenticação Ativa
+    session_data = st.session_state.get("cartola_session")
+    if not session_data:
+        session_data = AuthManager.load_active_session()
+        if session_data:
+            st.session_state["cartola_session"] = session_data
+            st.session_state["cartola_token"] = session_data.get("token", "")
+
+    # Checar Secrets como fallback
+    secrets_token = ""
+    try:
+        if hasattr(st, "secrets") and "cartola_token" in st.secrets:
+            secrets_token = st.secrets["cartola_token"]
+            if not st.session_state.get("cartola_token"):
+                st.session_state["cartola_token"] = secrets_token
+    except Exception:
+        pass
+
+    is_guest = st.session_state.get("guest_mode", False)
+    has_active_auth = bool(session_data or st.session_state.get("cartola_token"))
+
+    # Se não houver autenticação e não estiver em modo visitante, exibe a tela de login como porta de entrada
+    if not has_active_auth and not is_guest:
+        render_login_screen()
+        return
+
     st.html('<div class="main-header">🛡️ M1TOS EC • Cartola Pro</div><div class="sub-header">Otimizador Tático Inteligente com Pontuação Esperada (xP) & Reserva de Luxo</div>')
 
     saved_rounds = get_saved_rounds()
@@ -758,42 +852,54 @@ def main():
     official_round = official_data.get('rodada', 25)
 
     with st.sidebar:
-        # Carregar Token e Dados da Conta em segundo plano
-        saved_token = ""
-        try:
-            if hasattr(st, "secrets") and "cartola_token" in st.secrets:
-                saved_token = st.secrets["cartola_token"]
-        except Exception:
-            pass
-
-        active_token = st.session_state.get("cartola_token", saved_token)
-        user_glb_team = None
+        active_token = st.session_state.get("cartola_token", "")
+        team_name_disp = "M1TOS EC"
         patrimonio_real = 141.66
         
-        if active_token:
-            st.session_state["cartola_token"] = active_token
+        if session_data:
+            team_name_disp = session_data.get("team_name", "M1TOS EC")
+            patrimonio_real = float(session_data.get("patrimonio", 141.66))
+            active_token = session_data.get("token", active_token)
+        elif active_token:
             try:
                 temp_api = CartolaAPI(load_config())
                 user_glb_team = temp_api.get_user_team(active_token)
-                if user_glb_team and user_glb_team.get('patrimonio'):
-                    patrimonio_real = float(user_glb_team['patrimonio'])
+                if user_glb_team:
+                    if user_glb_team.get('patrimonio'):
+                        patrimonio_real = float(user_glb_team['patrimonio'])
+                    if user_glb_team.get('nome'):
+                        team_name_disp = user_glb_team['nome']
             except Exception:
                 pass
 
-        # Card do Perfil do Time M1TOS EC
+        # Card do Perfil do Time
+        status_color = "#38bdf8" if active_token else "#f59e0b"
+        status_text = "🟢 CONECTADO À GLOBO" if active_token else "🟡 MODO CONSULTA"
+        
         st.html(f'''
         <div class="team-profile-card">
             <div class="team-shield">🏆</div>
-            <div class="team-title">M1TOS EC</div>
+            <div class="team-title">{team_name_disp}</div>
             <div class="team-subtitle">Cartola FC • Temporada 2026</div>
-            <div class="market-status-pill" style="background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.3);">💰 PATRIMÔNIO: C$ {patrimonio_real:.2f}</div>
+            <div class="market-status-pill" style="background:rgba(56,189,248,0.15);color:{status_color};border:1px solid rgba(56,189,248,0.3);">💰 PATRIMÔNIO: C$ {patrimonio_real:.2f}</div>
+            <div style="font-size:0.75rem; color:{status_color}; margin-top:5px; font-weight:600; text-align:center;">{status_text}</div>
         </div>
         ''')
 
+        if active_token:
+            if st.button("🚪 Sair / Desconectar Conta", use_container_width=True, key="btn_logout_sidebar"):
+                AuthManager.logout()
+                st.session_state.clear()
+                st.rerun()
+        else:
+            if st.button("🔐 Conectar Conta Globo", type="primary", use_container_width=True, key="btn_login_sidebar"):
+                st.session_state["guest_mode"] = False
+                st.rerun()
+
         with st.sidebar.expander("🔑 Renovar Token Globo (Sessão)", expanded=False):
-            st.caption("O token da Globo dura 1 hora. Se expirar, cole o novo token aqui:")
+            st.caption("Se desejar atualizar o token manualmente nesta sessão:")
             token_in = st.text_input("Novo Bearer Token:", type="password", key="sidebar_token_renewal_input")
-            if st.button("🔄 Atualizar Token na Sessão", use_container_width=True, key="btn_apply_token"):
+            if st.button("🔄 Atualizar Token", use_container_width=True, key="btn_apply_token"):
                 if token_in.strip():
                     st.session_state["cartola_token"] = token_in.strip()
                     st.success("Token atualizado!")

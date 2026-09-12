@@ -221,3 +221,40 @@ def save_official_team(rodada, starters_df, captain_id, reserves_dict, super_sub
             print(f"[Aviso] Erro ao sincronizar com Google Sheets: {e}")
 
     return data
+
+def load_auth_session():
+    """Carrega a sessão salva da planilha do Google Sheets (aba sessao_cartola) ou cache local."""
+    if is_gsheets_configured():
+        try:
+            conn = get_gsheets_connection()
+            if conn:
+                df_sess = conn.read(worksheet="sessao_cartola", ttl=2)
+                if df_sess is not None and not df_sess.empty:
+                    row = df_sess.iloc[0].to_dict()
+                    return row
+        except Exception:
+            pass
+    return None
+
+def save_auth_session(session_dict):
+    """Salva a sessão na planilha do Google Sheets (aba sessao_cartola)."""
+    if is_gsheets_configured():
+        try:
+            conn = get_gsheets_connection()
+            if conn:
+                df_save = pd.DataFrame([session_dict])
+                conn.update(worksheet="sessao_cartola", data=df_save)
+        except Exception as e:
+            print(f"[Aviso] Erro ao salvar sessão no Google Sheets: {e}")
+
+def clear_auth_session():
+    """Limpa a sessão salva na planilha do Google Sheets."""
+    if is_gsheets_configured():
+        try:
+            conn = get_gsheets_connection()
+            if conn:
+                empty_df = pd.DataFrame(columns=["token", "email", "glbid", "authenticated_at", "team_name"])
+                conn.update(worksheet="sessao_cartola", data=empty_df)
+        except Exception:
+            pass
+
