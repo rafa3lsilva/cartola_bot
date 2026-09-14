@@ -592,7 +592,7 @@ def render_player_card(p, is_captain=False, is_super_sub=False, sub_gain=None):
         card_class += " player-card-super-sub"
 
     captain_html = '<div class="badge-captain">👑 CAPITÃO</div>' if is_captain else ''
-    super_sub_html = '<div class="badge-captain" style="background:#10b981;color:#fff;">⭐ RESERVA LUXO</div>' if is_super_sub else ''
+    super_sub_html = '<div class="badge-captain" style="background:#10b981;color:#fff;font-size:0.8rem;padding:2px 6px;border-radius:6px;box-shadow:0 0 8px rgba(16,185,129,0.5);" title="Reserva de Luxo">⭐</div>' if is_super_sub else ''
     badge_html = super_sub_html if is_super_sub else captain_html
 
     escudo_html = f'<img src="{escudo}" class="club-crest"/>' if escudo else ''
@@ -638,7 +638,7 @@ def render_live_player_card(p, pinfo=None, is_captain=False, is_super_sub=False)
         card_class += " live-card-super-sub"
 
     captain_html = '<div class="badge-captain">👑 CAPITÃO (1.5x)</div>' if is_captain else ''
-    super_sub_html = '<div class="badge-captain" style="background:#10b981;color:#fff;">⭐ RESERVA LUXO</div>' if is_super_sub else ''
+    super_sub_html = '<div class="badge-captain" style="background:#10b981;color:#fff;font-size:0.8rem;padding:2px 6px;border-radius:6px;box-shadow:0 0 8px rgba(16,185,129,0.5);" title="Reserva de Luxo">⭐</div>' if is_super_sub else ''
     badge_html = super_sub_html if is_super_sub else captain_html
     escudo_html = f'<img src="{escudo}" class="club-crest"/>' if escudo else ''
 
