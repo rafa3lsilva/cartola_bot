@@ -1158,10 +1158,58 @@ def main():
             with cap_c3:
                 st.write("")
                 st.write("")
-                if "custom_starters_df" in st.session_state:
+                if "custom_starters_df" in st.session_state or "custom_super_sub_pos" in st.session_state:
                     if st.button("⏪ Resetar Modificações", use_container_width=True, key="btn_reset_custom_team"):
-                        del st.session_state["custom_starters_df"]
+                        if "custom_starters_df" in st.session_state:
+                            del st.session_state["custom_starters_df"]
+                        if "custom_super_sub_pos" in st.session_state:
+                            del st.session_state["custom_super_sub_pos"]
                         st.rerun()
+
+            # Seletor do Reserva de Luxo
+            if reservas:
+                st.markdown("---")
+                sub_res_names = [f"{r.get('Nome')} ({pos} - {r.get('Clube')})" for pos, r in reservas.items() if hasattr(r, 'get')]
+                sub_res_keys = list(reservas.keys())
+                
+                # Identificar índice atual
+                super_sub_pos_chosen = st.session_state.get("custom_super_sub_pos", official_super_sub_pos or "Meia")
+                curr_res_idx = 0
+                for idx, pos in enumerate(sub_res_keys):
+                    if pos == super_sub_pos_chosen:
+                        curr_res_idx = idx
+                        break
+                        
+                res_c1, res_c2 = st.columns([3, 2])
+                with res_c1:
+                    chosen_res_label = st.selectbox("⭐ Mudar Reserva de Luxo (Banco):", options=sub_res_names, index=curr_res_idx, key="select_super_sub_change")
+                with res_c2:
+                    st.write("")
+                    st.write("")
+                    if st.button("⭐ Definir Reserva de Luxo", use_container_width=True, key="btn_apply_super_sub"):
+                        chosen_idx = sub_res_names.index(chosen_res_label)
+                        chosen_pos = sub_res_keys[chosen_idx]
+                        st.session_state["custom_super_sub_pos"] = chosen_pos
+                        st.success(f"⭐ Reserva de Luxo definido: {reservas[chosen_pos].get('Nome')} ({chosen_pos})!")
+                        st.rerun()
+
+        # Determinar super_sub ativo
+        super_sub_pos_chosen = st.session_state.get("custom_super_sub_pos", official_super_sub_pos or "Meia")
+        super_sub_id = None
+        super_sub_name = ""
+        if reservas:
+            if super_sub_pos_chosen not in reservas:
+                # Fallback para o de maior upside
+                best_up = -1.0
+                for pos, r in reservas.items():
+                    up = r.get('Upside', r.get('Media_Ajustada', 0)) if hasattr(r, 'get') else 0
+                    if up > best_up:
+                        best_up = up
+                        super_sub_pos_chosen = pos
+            if super_sub_pos_chosen in reservas:
+                r_active = reservas[super_sub_pos_chosen]
+                super_sub_id = r_active.get('ID') if hasattr(r_active, 'get') else None
+                super_sub_name = r_active.get('Nome') if hasattr(r_active, 'get') else ""
 
         # 1. Cards de Resumo no Topo
         c1, c2, c3, c4 = st.columns(4)
@@ -1178,7 +1226,8 @@ def main():
         st.markdown("")
         banner_c1, banner_c2 = st.columns([3, 2])
         with banner_c1:
-            st.markdown(f"🛡️ **Time M1TOS EC • Rodada {rodada_num}** | Projeção: **{total_xp:.2f} pts** | Custo: **C$ {total_cost:.2f}** | Capitão: **👑 {capitao_nome}**")
+            super_sub_badge_txt = f" | ⭐ Reserva de Luxo: **{super_sub_name} ({super_sub_pos_chosen})**" if super_sub_name else ""
+            st.markdown(f"🛡️ **Time M1TOS EC • Rodada {rodada_num}** | Projeção: **{total_xp:.2f} pts** | Custo: **C$ {total_cost:.2f}** | Capitão: **👑 {capitao_nome}**{super_sub_badge_txt}")
         with banner_c2:
             if st.button("🚀 ESCALAR NO CARTOLA GLOBO", type="primary", use_container_width=True, key="btn_main_autoscale_banner"):
                 with st.spinner("Enviando escalação diretamente para a Globo..."):
@@ -1188,7 +1237,8 @@ def main():
                         esquema_name=chosen_formation,
                         captain_id=int(capitao_row['ID']),
                         starters_ids=selected_df['ID'].tolist(),
-                        reserves_dict=reservas
+                        reserves_dict=reservas,
+                        super_sub_id=super_sub_id
                     )
                     handle_globo_escalacao_result(success, resp_globo, rodada_num, selected_df, capitao_row, reservas)
 
@@ -1335,7 +1385,8 @@ def main():
                                     esquema_name=chosen_formation,
                                     captain_id=int(capitao_row['ID']),
                                     starters_ids=selected_df['ID'].tolist(),
-                                    reserves_dict=reservas
+                                    reserves_dict=reservas,
+                                    super_sub_id=super_sub_id
                                 )
                                 handle_globo_escalacao_result(success, resp_globo, rodada_num, selected_df, capitao_row, reservas)
                 else:
@@ -1344,20 +1395,12 @@ def main():
                         st.write("🛡️ **Pronto para a rodada?** Salve este time para travar sua escalação oficial e acompanhar parciais ao vivo.")
                     with act_col2:
                         if st.button(f"💾 SALVAR COMO TIME OFICIAL (R{rodada_num})", type="primary", use_container_width=True, key="btn_save_advisor"):
-                            best_res_pos_calc = None
-                            max_up = -1.0
-                            for pos, r in reservas.items():
-                                up = r.get('Upside', r.get('Media_Ajustada', 0))
-                                if up > max_up:
-                                    max_up = up
-                                    best_res_pos_calc = pos
-                                    
                             save_official_team(
                                 rodada=rodada_num,
                                 starters_df=selected_df,
                                 captain_id=int(capitao_row['ID']),
                                 reserves_dict=reservas,
-                                super_sub_pos=best_res_pos_calc or "Atacante"
+                                super_sub_pos=super_sub_pos_chosen or "Atacante"
                             )
                             st.success(f"✅ Time da Rodada {rodada_num} salvo como Oficial com sucesso!")
                             st.rerun()
@@ -1411,23 +1454,15 @@ def main():
                 st.markdown("---")
                 st.html('<div class="sector-header">🔄 BANCO DE RESERVAS (Troca Automática)</div>')
                 
-                best_res_pos = None
-                max_upside = -1.0
-                for pos, r in reservas.items():
-                    up = r.get('Upside', r.get('Media_Ajustada', 0))
-                    if up > max_upside:
-                        max_upside = up
-                        best_res_pos = pos
-                        
                 res_cols = st.columns(len(reservas))
                 for idx, (pos, r) in enumerate(reservas.items()):
                     with res_cols[idx]:
-                        is_super = (pos == best_res_pos)
-                        gain = r.get('Expected_Gain', 0)
+                        is_super = (pos == super_sub_pos_chosen)
+                        gain = r.get('Expected_Gain', 0) if hasattr(r, 'get') else 0
                         render_player_card(r, is_super_sub=is_super, sub_gain=gain)
 
-                super_r = reservas[best_res_pos]
-                st.success(f"🌟 **Marque a estrelinha de Reserva de Luxo no Cartola em:** **{super_r['Nome']} ({super_r['Posicao']} - {super_r['Clube']})** | Teto: **{super_r.get('Upside', 0):.2f} pts**!")
+                super_r = reservas.get(super_sub_pos_chosen, list(reservas.values())[0])
+                st.success(f"⭐ **Reserva de Luxo Ativo:** **{super_r['Nome']} ({super_r['Posicao']} - {super_r['Clube']})** | Teto: **{super_r.get('Upside', 0):.2f} pts**!")
 
                 st.markdown("")
                 tab_btn1, tab_btn2 = st.columns(2)
@@ -1438,7 +1473,7 @@ def main():
                             starters_df=selected_df,
                             captain_id=int(capitao_row['ID']),
                             reserves_dict=reservas,
-                            super_sub_pos=best_res_pos or "Atacante"
+                            super_sub_pos=super_sub_pos_chosen or "Atacante"
                         )
                         st.success(f"✅ Time da Rodada {rodada_num} salvo com sucesso!")
                         st.rerun()
@@ -1451,7 +1486,8 @@ def main():
                                 esquema_name=chosen_formation,
                                 captain_id=int(capitao_row['ID']),
                                 starters_ids=selected_df['ID'].tolist(),
-                                reserves_dict=reservas
+                                reserves_dict=reservas,
+                                super_sub_id=super_sub_id
                             )
                             handle_globo_escalacao_result(success, resp_globo, rodada_num, selected_df, capitao_row, reservas)
 

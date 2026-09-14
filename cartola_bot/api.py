@@ -131,10 +131,10 @@ class CartolaAPI:
         except Exception:
             return None
 
-    def save_time_to_globo(self, token, esquema_name, captain_id, starters_ids, reserves_dict=None):
+    def save_time_to_globo(self, token, esquema_name, captain_id, starters_ids, reserves_dict=None, super_sub_id=None):
         """
         Envia a escalação completa diretamente para a conta oficial do Cartola FC.
-        Esquemas: 3-4-3: 1, 3-5-2: 2, 4-4-2: 3, 4-3-3: 4, 5-3-2: 5
+        Esquemas: 3-4-3: 1, 3-5-2: 2, 4-3-3: 3, 4-4-2: 4, 4-5-1: 5, 5-3-2: 6, 5-4-1: 7
         """
         esquema_map = {
             "3-4-3": 1,
@@ -188,6 +188,12 @@ class CartolaAPI:
             "atletas": [_extract_id(i) for i in starters_ids if i is not None],
             "reservas": reservas_payload
         }
+        
+        if super_sub_id is not None:
+            sub_id_int = _extract_id(super_sub_id)
+            if sub_id_int:
+                payload["reserva_luxo"] = sub_id_int
+                payload["reserva_luxo_id"] = sub_id_int
         
         url = "https://api.cartola.globo.com/auth/time/salvar"
         headers = dict(self.headers)
