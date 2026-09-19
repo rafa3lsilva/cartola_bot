@@ -114,7 +114,8 @@ class Scorer:
                 else:
                     base_est = media_bruta
                     
-                xp = base_est * mando_factor * opp_pos_factor * leak_factor
+                # xP projetado com fator de mando e fragilidade do rival
+                xp = base_est * mando_factor * opp_pos_factor
                 
             # 3. Técnico
             else:
