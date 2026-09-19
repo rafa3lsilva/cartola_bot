@@ -1397,7 +1397,7 @@ def main():
                                 starters_df=selected_df,
                                 captain_id=int(capitao_row['ID']),
                                 reserves_dict=reservas,
-                                super_sub_pos=best_res_pos_calc or "Atacante"
+                                super_sub_pos=super_sub_pos_chosen or best_res_pos_calc or "Atacante"
                             )
                             st.success(f"✅ Time da Rodada {rodada_num} salvo com sucesso!")
                             st.rerun()
