@@ -1,18 +1,18 @@
-Status,Posicao,Nome,Clube,Preco,Min_Val,xP_Esperado
-Titular,Zagueiro,Domingos Duarte,SAO,8.38,3.1,5.16
-Titular,Lateral,Renan Lodi,CAM,9.75,3.61,6.95
-Titular,Meia,Danilo,BOT,13.57,5.02,6.39
-Titular,Atacante,Cuello,CAM,11.04,4.08,8.32
-Titular,Lateral,Natanael,CAM,9.09,3.36,6.97
-Titular,Meia,Matheus Pereira,CRU,15.3,5.66,6.15
-Titular,Zagueiro,Sabino,SAO,7.26,2.69,5.18
-Titular,Goleiro,Rossi,FLA,7.86,2.91,5.49
-Titular,Atacante,Luciano,SAO,13.73,5.08,7.49
-Titular,Atacante,Pedro [C],FLA,15.41,5.7,12.46
-Titular,Meia,Arias,PAL,13.77,5.09,6.04
-Titular,Técnico,Leonardo Jardim,FLA,13.21,4.89,5.46
-Reserva,Goleiro,Rafael,SAO,7.48,2.77,4.75
-Reserva,Lateral,Igor Formiga,MIR,8.7,3.22,5.84
-Reserva,Zagueiro,Rodrigo Moledo,CFC,6.22,2.3,3.01
-Reserva,Meia,Arrascaeta,FLA,13.42,4.97,5.78
-Reserva,Atacante,Gabriel,SAN,10.57,3.91,5.94
+Tipo,Posição,Jogador,Clube,Preço (C$),xP Projetado,Pontos Reais,Saldo (Real - xP),Desempenho,Scouts na Rodada
+Titular,Zagueiro,Domingos Duarte,SAO,8.38,5.16,,,⏳ Aguardando Jogo,-
+Titular,Lateral,Renan Lodi,CAM,9.75,6.95,,,⏳ Aguardando Jogo,-
+Titular,Meia,Danilo,BOT,13.57,6.39,,,⏳ Aguardando Jogo,-
+Titular,Atacante,Cuello,CAM,11.04,8.32,,,⏳ Aguardando Jogo,-
+Titular,Lateral,Natanael,CAM,9.09,6.97,,,⏳ Aguardando Jogo,-
+Titular,Meia,Matheus Pereira,CRU,15.3,6.15,,,⏳ Aguardando Jogo,-
+Titular,Zagueiro,Sabino,SAO,7.26,5.18,,,⏳ Aguardando Jogo,-
+Titular,Goleiro,Rossi,FLA,7.86,5.49,,,⏳ Aguardando Jogo,-
+Titular,Atacante,👑 Pedro [C],FLA,15.41,12.46,,,⏳ Aguardando Jogo,-
+Titular,Atacante,Luciano,SAO,13.73,7.49,,,⏳ Aguardando Jogo,-
+Titular,Meia,Arias,PAL,13.77,6.04,,,⏳ Aguardando Jogo,-
+Titular,Técnico,Leonardo Jardim,FLA,13.21,5.46,,,⏳ Aguardando Jogo,-
+Reserva,Goleiro,Rafael,SAO,7.48,4.75,,,⏳ Aguardando Jogo,-
+Reserva,Lateral,Igor Formiga,MIR,8.7,5.84,,,⏳ Aguardando Jogo,-
+Reserva,Zagueiro,Rodrigo Moledo,CFC,6.22,3.01,,,⏳ Aguardando Jogo,-
+Reserva,Meia,⭐ Arrascaeta [Reserva Luxo],FLA,13.42,5.78,,,⏳ Aguardando Jogo,-
+Reserva,Atacante,Gabriel,SAN,10.57,5.94,,,⏳ Aguardando Jogo,-

@@ -1616,10 +1616,10 @@ def main():
 
 
 
-            # Checagem ao vivo do Reserva de Luxo
-            best_res_pos = None
-            max_upside = -1.0
-            if reservas:
+            # Checagem ao vivo do Reserva de Luxo (respeita a escolha oficial/salva)
+            best_res_pos = super_sub_pos_chosen
+            if not best_res_pos and reservas:
+                max_upside = -1.0
                 for pos, r in reservas.items():
                     up = r.get('Upside', r.get('Media_Ajustada', 0))
                     if up > max_upside:
