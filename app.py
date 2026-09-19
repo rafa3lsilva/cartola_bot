@@ -573,6 +573,30 @@ def render_consult_player_card(s):
     )
     st.html(html)
 
+def order_defensive_line(df_defesa):
+    """Ordena a linha defensiva colocando os Laterais nas extremidades e os Zagueiros no centro.
+    Exemplos:
+      4 defensores (2 LAT, 2 ZAG): [Lateral 1, Zagueiro 1, Zagueiro 2, Lateral 2]
+      5 defensores (2 LAT, 3 ZAG): [Lateral 1, Zagueiro 1, Zagueiro 2, Zagueiro 3, Lateral 2]
+      3 defensores (0 LAT, 3 ZAG): [Zagueiro 1, Zagueiro 2, Zagueiro 3]
+    """
+    if df_defesa is None or df_defesa.empty:
+        return df_defesa
+    
+    lats = df_defesa[df_defesa['Posicao'] == 'Lateral']
+    zags = df_defesa[df_defesa['Posicao'] == 'Zagueiro']
+    
+    if len(lats) >= 2:
+        lat_left = lats.iloc[[0]]
+        lat_right = lats.iloc[[1]]
+        extra_lats = lats.iloc[2:] if len(lats) > 2 else pd.DataFrame()
+        return pd.concat([lat_left, zags, extra_lats, lat_right])
+    elif len(lats) == 1:
+        lat_left = lats.iloc[[0]]
+        return pd.concat([lat_left, zags])
+    else:
+        return zags
+
 def render_player_card(p, is_captain=False, is_super_sub=False, sub_gain=None):
     """Renderiza um card visual elegante para um jogador."""
     nome = p.get('Nome', 'Sem Nome')
@@ -580,7 +604,7 @@ def render_player_card(p, is_captain=False, is_super_sub=False, sub_gain=None):
     clube = p.get('Clube', '')
     preco = p.get('Preco', 0.0)
     media = p.get('Media', 0.0)
-    xp_val = p.get('Media_Ajustada', 0.0) * (1.5 if is_captain else 1.0)
+    xp_val = p.get('Media_Ajustada', 0.0) * (1.4 if is_captain else 1.0)
     sg_prob = p.get('SG_Prob', None)
     foto = p.get('Foto', '') or "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/generica.png"
     escudo = p.get('Escudo', '')
@@ -1425,9 +1449,10 @@ def main():
                     with cols_mei[idx]:
                         render_player_card(p, is_captain=(p['Nome'] == capitao_nome))
 
-            # DEFESA (Laterais & Zagueiros)
-            defesa = selected_df[selected_df['Posicao'].isin(['Lateral', 'Zagueiro'])]
-            if not defesa.empty:
+            # DEFESA (Laterais & Zagueiros - Laterais nas pontas, Zagueiros no centro)
+            defesa_raw = selected_df[selected_df['Posicao'].isin(['Lateral', 'Zagueiro'])]
+            if not defesa_raw.empty:
+                defesa = order_defensive_line(defesa_raw)
                 st.html('<div class="sector-header">🛡️ LINHA DEFENSIVA</div>')
                 cols_def = st.columns(len(defesa))
                 for idx, (_, p) in enumerate(defesa.iterrows()):
@@ -1644,9 +1669,10 @@ def main():
                         pinfo = pontuados.get(str(p.get('ID')))
                         render_live_player_card(p, pinfo=pinfo, is_captain=(p['Nome'] == capitao_nome))
 
-            # DEFESA AO VIVO
-            defesa = selected_df[selected_df['Posicao'].isin(['Lateral', 'Zagueiro'])]
-            if not defesa.empty:
+            # DEFESA AO VIVO (Laterais nas pontas, Zagueiros no centro)
+            defesa_raw = selected_df[selected_df['Posicao'].isin(['Lateral', 'Zagueiro'])]
+            if not defesa_raw.empty:
+                defesa = order_defensive_line(defesa_raw)
                 st.html('<div class="sector-header">🛡️ LINHA DEFENSIVA AO VIVO</div>')
                 cols_def = st.columns(len(defesa))
                 for idx, (_, p) in enumerate(defesa.iterrows()):
