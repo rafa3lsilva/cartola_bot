@@ -24,12 +24,12 @@ class Exporter:
         if 'Is_Capitao' in selected_df.columns and selected_df['Is_Capitao'].any():
             capitao_row = selected_df[selected_df['Is_Capitao']].iloc[0]
             capitao_nome = capitao_row['Nome']
-            capitao_xp_extra = capitao_row['Media_Ajustada'] * 0.5
+            capitao_xp_extra = capitao_row['Media_Ajustada'] * 0.4
         else:
             jogadores = selected_df[selected_df['Posicao'] != 'Técnico']
             capitao_idx = jogadores['Media_Ajustada'].idxmax()
             capitao_nome = jogadores.loc[capitao_idx, 'Nome']
-            capitao_xp_extra = jogadores.loc[capitao_idx, 'Media_Ajustada'] * 0.5
+            capitao_xp_extra = jogadores.loc[capitao_idx, 'Media_Ajustada'] * 0.4
         
         total_xp = selected_df['Media_Ajustada'].sum() + capitao_xp_extra
         
@@ -76,7 +76,7 @@ class Exporter:
                 
                 if nome == capitao_nome:
                     nome = f"👑 {nome} [C]"
-                    xp_str = f"[bold yellow]{xp_val * 1.5:.2f} (x1.5)[/bold yellow]"
+                    xp_str = f"[bold yellow]{xp_val * 1.4:.2f} (x1.4)[/bold yellow]"
                     
                 table.add_row(
                     p['Posicao'], nome, p['Clube'], f"{p['Preco']:.2f}", 
@@ -132,7 +132,7 @@ class Exporter:
             
         for _, p in selected_df.iterrows():
             is_capitao = p['Nome'] == capitao_nome
-            xp_final = round(p['Media_Ajustada'] * 1.5, 2) if is_capitao else p['Media_Ajustada']
+            xp_final = round(p['Media_Ajustada'] * 1.4, 2) if is_capitao else p['Media_Ajustada']
             export_list.append({
                 'Status': 'Titular',
                 'Posicao': p['Posicao'],

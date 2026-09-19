@@ -6,6 +6,14 @@ class Scorer:
     def __init__(self, config):
         self.config = config['scoring']
         self.defaults = config['defaults']
+        
+        # Calibração Bayesiana: priors por posição (média histórica típica do Brasileirão)
+        self.position_priors = {
+            'Goleiro': 3.2, 'Lateral': 3.8, 'Zagueiro': 3.5,
+            'Meia': 4.5, 'Atacante': 5.0, 'Técnico': 4.0
+        }
+        self.shrinkage_k = 5      # Força do shrinkage (quanto maior, mais puxa para a prior)
+        self.bias_correction = 0.92  # Fator de calibração do viés otimista sistêmico
 
     def process_data(self, mercado_data, partidas_data, target_athlete_ids=None):
         """Processa os dados brutos e calcula o xP com Fator Momento e Matriz de Cedência de Scouts."""
@@ -92,8 +100,9 @@ class Scorer:
                     scout_expectancy = (adjusted_ds + fs_pts + fin_pts + penal_pts + g_pts*0.3 + a_pts*0.3)
                     base_est = (0.5 * media_basica + 0.5 * scout_expectancy) if jogos >= 3 else media_basica
                     
-                # xP Defesa = Média básica ajustada + SG esperado
-                xp = (base_est * mando_factor * opp_pos_factor) + (5.0 * sg_prob)
+                # xP Defesa = Média básica ajustada + SG bayesiano (pondera ganho vs penalidade)
+                sg_expected = (sg_prob * 5.0) - ((1 - sg_prob) * 1.5)
+                xp = (base_est * mando_factor * opp_pos_factor) + sg_expected
                 
             # 2. Meias e Atacantes
             elif posicao in ['Meia', 'Atacante']:
@@ -111,6 +120,14 @@ class Scorer:
             else:
                 xp = media_bruta * mando_factor
                 
+            xp = max(0.0, xp)
+            
+            # Shrinkage bayesiano + correção de viés (Técnico tem lógica própria, não aplicar)
+            if posicao != 'Técnico' and jogos > 0:
+                prior = self.position_priors.get(posicao, 4.0)
+                xp = (jogos * xp + self.shrinkage_k * prior) / (jogos + self.shrinkage_k)
+                xp = xp * self.bias_correction
+            
             xp = round(max(0.0, xp), 2)
             min_valorizar = round(preco * 0.37, 2)
             

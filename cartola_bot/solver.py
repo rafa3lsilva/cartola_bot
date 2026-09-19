@@ -24,9 +24,9 @@ class TeamOptimizer:
         
         prob = pulp.LpProblem(f"Otimizador_Cartola_{formation_name}", pulp.LpMaximize)
         
-        # 2. Função Objetivo: Maximizar Pontuação Total Esperada (com Capitão 1.5x)
+        # 2. Função Objetivo: Maximizar Pontuação Total Esperada (com Capitão 1.4x — ajuste de risco)
         prob += pulp.lpSum([
-            medias[i] * player_vars[i] + 0.5 * medias[i] * captain_vars[i] 
+            medias[i] * player_vars[i] + 0.4 * medias[i] * captain_vars[i] 
             for i in ids
         ]), "Total_Pontos_Esperados"
         
@@ -80,8 +80,8 @@ class TeamOptimizer:
         for formation_name in self.formations.keys():
             res_df = self.optimize(df, budget, formation_name, max_players_per_club)
             if res_df is not None:
-                # Calcular pontuação total (soma + bônus de 50% do capitão)
-                cap_bonus = res_df[res_df['Is_Capitao']]['Media_Ajustada'].sum() * 0.5
+                # Calcular pontuação total (soma + bônus de 40% do capitão — ajuste de risco)
+                cap_bonus = res_df[res_df['Is_Capitao']]['Media_Ajustada'].sum() * 0.4
                 total_score = res_df['Media_Ajustada'].sum() + cap_bonus
                 
                 all_results[formation_name] = {
@@ -152,7 +152,7 @@ class TeamOptimizer:
             captain_id = selected_df.loc[cap_idx, 'ID']
             
         cap_row = selected_df[selected_df['ID'] == captain_id].iloc[0]
-        cap_extra = float(cap_row['Media_Ajustada'] * 0.5)
+        cap_extra = float(cap_row['Media_Ajustada'] * 0.4)
         total_xp = round(float(selected_df['Media_Ajustada'].sum() + cap_extra), 2)
         
         starters_analysis = []
@@ -167,7 +167,7 @@ class TeamOptimizer:
             preco = float(p['Preco'])
             xp = float(p['Media_Ajustada'])
             is_cap = (p_id == captain_id)
-            xp_final = xp * 1.5 if is_cap else xp
+            xp_final = xp * 1.4 if is_cap else xp
             
             tag = p.get('Tag', 'Boa Opção')
             tag_color = p.get('Tag_Color', '#f59e0b')

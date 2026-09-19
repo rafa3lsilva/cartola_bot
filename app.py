@@ -1090,7 +1090,7 @@ def main():
 
         capitao_row = selected_df[selected_df['Is_Capitao']].iloc[0] if 'Is_Capitao' in selected_df.columns and selected_df['Is_Capitao'].any() else selected_df.iloc[0]
         capitao_nome = capitao_row['Nome']
-        capitao_extra = capitao_row['Media_Ajustada'] * 0.5
+        capitao_extra = capitao_row['Media_Ajustada'] * 0.4
         total_xp = selected_df['Media_Ajustada'].sum() + capitao_extra
         total_cost = selected_df['Preco'].sum()
         budget_left = budget - total_cost
@@ -1691,7 +1691,7 @@ def main():
                 for _, p in players.iterrows():
                     is_cap = p['Nome'] == capitao_nome
                     nome_display = f"👑 {p['Nome']} [CAPITÃO]" if is_cap else p['Nome']
-                    xp_val = p['Media_Ajustada'] * 1.5 if is_cap else p['Media_Ajustada']
+                    xp_val = p['Media_Ajustada'] * 1.4 if is_cap else p['Media_Ajustada']
                     media_val = f"{p['Media']:.2f}" if ('Media' in p and pd.notna(p['Media'])) else f"{p.get('Media_Ajustada', 0.0):.2f}"
                     min_val = f"C$ {p['Min_Val']:.2f}" if ('Min_Val' in p and pd.notna(p['Min_Val'])) else f"C$ {(p.get('Preco', 0.0) * 0.37):.2f}"
                     sg_val = f"{p['SG_Prob']:.0f}%" if ('SG_Prob' in p and pd.notna(p['SG_Prob']) and p['Posicao'] in ['Goleiro', 'Lateral', 'Zagueiro']) else "-"
@@ -1785,7 +1785,7 @@ def main():
         report_rows = []
         for _, p in selected_df.iterrows():
             is_cap = (p['Nome'] == capitao_nome)
-            xp_exp = p['Media_Ajustada'] * 1.5 if is_cap else p['Media_Ajustada']
+            xp_exp = p['Media_Ajustada'] * 1.4 if is_cap else p['Media_Ajustada']
             pinfo = pontuados.get(str(p.get('ID')))
             
             if pinfo is not None:
