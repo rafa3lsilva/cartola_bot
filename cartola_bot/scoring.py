@@ -7,13 +7,14 @@ class Scorer:
         self.config = config['scoring']
         self.defaults = config['defaults']
         
-        # Calibração Bayesiana: priors por posição (média histórica típica do Brasileirão)
+        # Calibração Bayesiana Adaptativa: priors por posição (média histórica típica do Brasileirão)
         self.position_priors = {
             'Goleiro': 3.2, 'Lateral': 3.8, 'Zagueiro': 3.5,
             'Meia': 4.5, 'Atacante': 5.0, 'Técnico': 4.0
         }
-        self.shrinkage_k = 5      # Força do shrinkage (quanto maior, mais puxa para a prior)
-        self.bias_correction = 0.92  # Fator de calibração do viés otimista sistêmico
+        # Parâmetros padrão mantidos para compatibilidade retroativa
+        self.shrinkage_k = 5
+        self.bias_correction = 0.92
 
     def process_data(self, mercado_data, partidas_data, target_athlete_ids=None):
         """Processa os dados brutos e calcula o xP com Fator Momento e Matriz de Cedência de Scouts."""
@@ -123,11 +124,22 @@ class Scorer:
                 
             xp = max(0.0, xp)
             
-            # Shrinkage bayesiano + correção de viés (Técnico tem lógica própria, não aplicar)
+            # Shrinkage bayesiano adaptativo + calibração de viés (Técnico tem lógica própria, não aplicar)
             if posicao != 'Técnico' and jogos > 0:
                 prior = self.position_priors.get(posicao, 4.0)
-                xp = (jogos * xp + self.shrinkage_k * prior) / (jogos + self.shrinkage_k)
-                xp = xp * self.bias_correction
+                # K adaptativo decresce com o tamanho da amostra (reduz incerteza estatística)
+                if jogos < 6:
+                    k_shrink = 5.0
+                    bias_mult = 0.92
+                elif jogos < 15:
+                    k_shrink = 3.0
+                    bias_mult = 0.95
+                else:
+                    k_shrink = 1.0
+                    bias_mult = 0.98  # Amostra consolidada (15+ jogos): dados do atleta são soberanos
+                
+                xp = (jogos * xp + k_shrink * prior) / (jogos + k_shrink)
+                xp = xp * bias_mult
             
             xp = round(max(0.0, xp), 2)
             min_valorizar = round(preco * 0.37, 2)
