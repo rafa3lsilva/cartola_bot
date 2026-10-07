@@ -18,9 +18,9 @@ class TeamOptimizer:
         posicoes = dict(zip(ids, df['Posicao']))
         clubes = dict(zip(ids, df['Clube']))
         
-        # 1. Variáveis de Decisão
-        player_vars = pulp.LpVariable.dicts("Atleta", ids, cat="Binary")
-        captain_vars = pulp.LpVariable.dicts("Capitao", ids, cat="Binary")
+        # 1. Variáveis de Decisão (compatível com todas as versões do PuLP)
+        player_vars = {i: pulp.LpVariable(f"Atleta_{i}", cat="Binary") for i in ids}
+        captain_vars = {i: pulp.LpVariable(f"Capitao_{i}", cat="Binary") for i in ids}
         
         prob = pulp.LpProblem(f"Otimizador_Cartola_{formation_name}", pulp.LpMaximize)
         

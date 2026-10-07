@@ -1,7 +1,7 @@
 pandas
 requests
 pyyaml
-pulp
+pulp>=2.8.0,<4.0.0
 rich
 matplotlib
 streamlit
