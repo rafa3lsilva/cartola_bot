@@ -4,10 +4,15 @@ import pandas as pd
 class TeamOptimizer:
     """Classe responsável por resolver o problema de otimização linear da escalação com PuLP."""
     def __init__(self, config):
-        self.formations = config['formations']
+        self.config = config
+        self.formations = config.get('formations', {})
+        self.weights = config.get('scoring', {}).get('weights', {})
+        self.upside_lambda_atk = self.weights.get('upside_lambda_atk', 0.25)
+        self.upside_lambda_def = self.weights.get('upside_lambda_def', 0.12)
+        self.captain_upside_weight = self.weights.get('captain_upside_weight', 0.50)
 
     def optimize(self, df, budget, formation_name, max_players_per_club=None):
-        """Usa Programação Linear Inteira Mista (MILP) para encontrar o time ideal com Capitão integrado."""
+        """Usa Programação Linear Inteira Mista (MILP) para encontrar o time ideal com Capitão integrado e foco em alto teto (upside)."""
         reqs = self.formations.get(formation_name)
         if not reqs:
             raise ValueError(f"Formação '{formation_name}' não suportada.")
@@ -17,6 +22,30 @@ class TeamOptimizer:
         medias = dict(zip(ids, df['Media_Ajustada']))
         posicoes = dict(zip(ids, df['Posicao']))
         clubes = dict(zip(ids, df['Clube']))
+        upsides = dict(zip(ids, df['Upside'])) if 'Upside' in df.columns else medias
+        
+        # Calcular scores efetivos combinando média esperada + peso de teto por posição
+        effective_scores = {}
+        cap_scores = {}
+        for i in ids:
+            pos = posicoes[i]
+            m = medias[i]
+            u = upsides.get(i, m)
+            diff = max(0.0, u - m)
+            
+            if pos in ['Meia', 'Atacante']:
+                effective_scores[i] = m + self.upside_lambda_atk * diff
+                # Capitão oficial (+50%): prioriza atacantes/meias de maior teto em confrontos favoráveis
+                cap_scores[i] = 0.50 * (m + self.captain_upside_weight * diff)
+            elif pos in ['Lateral', 'Zagueiro']:
+                effective_scores[i] = m + self.upside_lambda_def * diff
+                cap_scores[i] = 0.50 * (m + 0.15 * diff)
+            elif pos == 'Goleiro':
+                effective_scores[i] = m + 0.08 * diff
+                cap_scores[i] = 0.50 * m
+            else:  # Técnico
+                effective_scores[i] = m
+                cap_scores[i] = 0.0
         
         # 1. Variáveis de Decisão (compatível com todas as versões do PuLP)
         player_vars = {i: pulp.LpVariable(f"Atleta_{i}", cat="Binary") for i in ids}
@@ -24,11 +53,11 @@ class TeamOptimizer:
         
         prob = pulp.LpProblem(f"Otimizador_Cartola_{formation_name}", pulp.LpMaximize)
         
-        # 2. Função Objetivo: Maximizar Pontuação Total Esperada (com Capitão 1.4x — ajuste de risco)
+        # 2. Função Objetivo: Maximizar Pontuação Total Esperada + Upside (com Capitão 1.5x)
         prob += pulp.lpSum([
-            medias[i] * player_vars[i] + 0.4 * medias[i] * captain_vars[i] 
+            effective_scores[i] * player_vars[i] + cap_scores[i] * captain_vars[i] 
             for i in ids
-        ]), "Total_Pontos_Esperados"
+        ]), "Total_Pontos_Esperados_Upside"
         
         # 3. Restrição de Orçamento
         prob += pulp.lpSum([precos[i] * player_vars[i] for i in ids]) <= budget, "Custo_Total"
@@ -80,8 +109,8 @@ class TeamOptimizer:
         for formation_name in self.formations.keys():
             res_df = self.optimize(df, budget, formation_name, max_players_per_club)
             if res_df is not None:
-                # Calcular pontuação total (soma + bônus de 40% do capitão — ajuste de risco)
-                cap_bonus = res_df[res_df['Is_Capitao']]['Media_Ajustada'].sum() * 0.4
+                # Calcular pontuação total (soma + bônus de 50% oficial do capitão)
+                cap_bonus = res_df[res_df['Is_Capitao']]['Media_Ajustada'].sum() * 0.5
                 total_score = res_df['Media_Ajustada'].sum() + cap_bonus
                 
                 all_results[formation_name] = {

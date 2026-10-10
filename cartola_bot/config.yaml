@@ -19,6 +19,13 @@ scoring:
     
     # Impacto da classificação do adversário (Pos 1 a 20)
     opp_strength_weight: 0.015     # Ajuste percentual por posição relativa
+    
+    # Parâmetros Estratégicos para Meta de 100 Pontos (Upside Maximization)
+    nonlinear_opp_boost: true      # Curva de fragilidade não-linear para adversários fracos/Z4
+    z4_attack_boost: 0.22         # Boost adicional para meias/atacantes mandantes contra Z4
+    upside_lambda_atk: 0.25       # Peso do teto na função objetivo para Meias e Atacantes
+    upside_lambda_def: 0.12       # Peso do teto na função objetivo para Laterais e Zagueiros
+    captain_upside_weight: 0.50   # Ponderação do teto na escolha do capitão
 
 formations:
   "4-3-3":

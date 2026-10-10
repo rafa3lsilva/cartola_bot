@@ -29,6 +29,8 @@ class Scorer:
         home_atk_mult = weights.get('home_attack_multiplier', 1.15)
         away_atk_mult = weights.get('away_attack_multiplier', 0.85)
         opp_weight = weights.get('opp_strength_weight', 0.015)
+        nonlinear_boost = weights.get('nonlinear_opp_boost', True)
+        z4_attack_boost = weights.get('z4_attack_boost', 0.22)
         
         # 2. Matriz de Cedência de Scouts Coletiva por Clube
         club_concessions = self._calculate_club_concessions(atletas)
@@ -115,8 +117,18 @@ class Scorer:
                 else:
                     base_est = media_bruta
                     
-                # xP projetado com fator de mando e fragilidade do rival
-                xp = base_est * mando_factor * opp_pos_factor
+                # xP projetado com fator de mando e fragilidade do rival (com aceleração não-linear contra Z4/defesas frágeis)
+                atk_opp_factor = opp_pos_factor
+                if nonlinear_boost:
+                    if opp_pos >= 15:
+                        vuln_ratio = max(0.0, (opp_pos - 14) / 6.0)
+                        nonlin_bonus = (vuln_ratio ** 1.35) * z4_attack_boost * (1.25 if is_home else 0.85)
+                        leak_bonus = max(0.0, (leak_factor - 1.0) * 0.35)
+                        atk_opp_factor += nonlin_bonus + leak_bonus
+                    elif opp_pos <= 3 and not is_home:
+                        atk_opp_factor -= 0.06
+                        
+                xp = base_est * mando_factor * atk_opp_factor
                 
             # 3. Técnico
             else:
@@ -144,8 +156,19 @@ class Scorer:
             xp = round(max(0.0, xp), 2)
             min_valorizar = round(preco * 0.37, 2)
             
-            # Teto / Upside (potencial de mitada com Fator Momento)
-            upside = round(xp + (g_pts * 1.2 + a_pts * 1.1 + fin_pts*0.6 + ds_pts*0.5), 2)
+            # Teto / Upside Estratégico (potencial de mitada por posição e favorabilidade de confronto)
+            if posicao in ['Meia', 'Atacante']:
+                matchup_mult = 1.35 if (is_home and opp_pos >= 15) else (1.15 if is_home else 0.95)
+                upside_val = xp + (g_pts * 1.5 + a_pts * 1.2 + fin_pts * 0.8 + ds_pts * 0.4) * matchup_mult
+            elif posicao in ['Lateral', 'Zagueiro']:
+                sg_ceiling = 5.0 if sg_prob >= 0.40 else 2.5
+                upside_val = base_est + sg_ceiling + (ds_pts * 0.8 + fin_pts * 0.4 + g_pts * 0.4 + a_pts * 0.4) * (1.2 if is_home else 1.0)
+            elif posicao == 'Goleiro':
+                sg_ceiling = 5.0 if sg_prob >= 0.40 else 2.5
+                upside_val = base_est + sg_ceiling + (de_pts * 1.4) * opp_concession['shots_rate']
+            else:
+                upside_val = xp
+            upside = round(max(xp, upside_val), 2)
             
             clube_obj = clubes.get(clube_id, {})
             clube_nome = clube_obj.get('nome', 'Desconhecido')
@@ -301,10 +324,12 @@ class Scorer:
             momentum_casa = 1.0 + (form_casa - 0.45) * 0.20
             momentum_visi = 1.0 + (form_visi - 0.45) * 0.20
             
-            # 2. Probabilidade estimada de SG ajustada por Momento
+            # 2. Probabilidade estimada de SG ajustada por Momento e Confronto
             form_diff = (form_casa - form_visi) * 0.15
             
             sg_prob_casa = sg_base + sg_home + (visi_pos - casa_pos) * opp_weight + form_diff
+            if visi_pos >= 16 and casa_pos <= 10:
+                sg_prob_casa += 0.08  # Boost não-linear de SG para mandante favorito contra Z4/Z5
             sg_prob_casa = max(0.05, min(0.85, sg_prob_casa))
             
             sg_prob_visi = sg_base - sg_away + (casa_pos - visi_pos) * opp_weight - form_diff
