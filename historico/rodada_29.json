@@ -41,7 +41,8 @@
       "Confronto": "vs CFC (C)",
       "Is_Capitao": false,
       "Foto": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/FLU/220x220.png",
-      "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/FLU/60x60.png"
+      "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/FLU/60x60.png",
+      "Pontos_Reais": 5.0
     },
     {
       "ID": 94968,
@@ -57,7 +58,8 @@
       "Confronto": "vs MIR (C)",
       "Is_Capitao": false,
       "Foto": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/RBB/220x220.png",
-      "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/RBB/60x60.png"
+      "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/RBB/60x60.png",
+      "Pontos_Reais": -0.1
     },
     {
       "ID": 96610,
@@ -73,7 +75,8 @@
       "Confronto": "vs SAO (C)",
       "Is_Capitao": false,
       "Foto": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/CRU/220x220.png",
-      "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/CRU/60x60.png"
+      "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/CRU/60x60.png",
+      "Pontos_Reais": 8.2
     },
     {
       "ID": 124912,
@@ -89,7 +92,8 @@
       "Confronto": "vs SAO (C)",
       "Is_Capitao": false,
       "Foto": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/CRU/220x220.png",
-      "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/CRU/60x60.png"
+      "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/CRU/60x60.png",
+      "Pontos_Reais": 8.2
     },
     {
       "ID": 113103,
@@ -105,7 +109,8 @@
       "Confronto": "vs BAH (C)",
       "Is_Capitao": false,
       "Foto": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/PAL/220x220.png",
-      "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/PAL/60x60.png"
+      "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/PAL/60x60.png",
+      "Pontos_Reais": 12.3
     },
     {
       "ID": 105300,
@@ -121,7 +126,8 @@
       "Confronto": "vs VAS (C)",
       "Is_Capitao": false,
       "Foto": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/BOT/220x220.png",
-      "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/BOT/60x60.png"
+      "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/BOT/60x60.png",
+      "Pontos_Reais": 4.3
     },
     {
       "ID": 89274,
@@ -137,7 +143,8 @@
       "Confronto": "vs BAH (C)",
       "Is_Capitao": false,
       "Foto": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/PAL/220x220.png",
-      "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/PAL/60x60.png"
+      "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/PAL/60x60.png",
+      "Pontos_Reais": 7.3
     },
     {
       "ID": 39148,
@@ -153,7 +160,8 @@
       "Confronto": "vs CFC (C)",
       "Is_Capitao": false,
       "Foto": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/FLU/220x220.png",
-      "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/FLU/60x60.png"
+      "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/FLU/60x60.png",
+      "Pontos_Reais": 9.3
     },
     {
       "ID": 94930,
@@ -169,7 +177,8 @@
       "Confronto": "@ SAN (F)",
       "Is_Capitao": false,
       "Foto": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/FLA/220x220.png",
-      "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/FLA/60x60.png"
+      "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/FLA/60x60.png",
+      "Pontos_Reais": 8.0
     },
     {
       "ID": 110426,
@@ -185,7 +194,8 @@
       "Confronto": "vs COR (C)",
       "Is_Capitao": false,
       "Foto": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/INT/220x220.png",
-      "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/INT/60x60.png"
+      "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/INT/60x60.png",
+      "Pontos_Reais": 2.6
     },
     {
       "ID": 127273,
@@ -201,7 +211,8 @@
       "Confronto": "vs SAO (C)",
       "Is_Capitao": false,
       "Foto": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/CRU/220x220.png",
-      "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/CRU/60x60.png"
+      "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/CRU/60x60.png",
+      "Pontos_Reais": 10.68
     },
     {
       "ID": 130209,
@@ -217,7 +228,8 @@
       "Confronto": "vs CHA (C)",
       "Is_Capitao": true,
       "Foto": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/VIT/220x220.png",
-      "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/VIT/60x60.png"
+      "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/VIT/60x60.png",
+      "Pontos_Reais": 3.9
     }
   ],
   "reserves": {
@@ -231,7 +243,8 @@
       "Upside": 7.01,
       "Is_Super_Sub": false,
       "Foto": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/VIT/220x220.png",
-      "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/VIT/60x60.png"
+      "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/VIT/60x60.png",
+      "Pontos_Reais": 10.7
     },
     "Lateral": {
       "ID": 72493,
@@ -243,7 +256,8 @@
       "Upside": 8.06,
       "Is_Super_Sub": false,
       "Foto": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/BOT/220x220.png",
-      "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/BOT/60x60.png"
+      "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/BOT/60x60.png",
+      "Pontos_Reais": 14.0
     },
     "Zagueiro": {
       "ID": 141131,
@@ -255,7 +269,8 @@
       "Upside": 5.86,
       "Is_Super_Sub": false,
       "Foto": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/CAM/220x220.png",
-      "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/CAM/60x60.png"
+      "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/CAM/60x60.png",
+      "Pontos_Reais": 1.2
     },
     "Meia": {
       "ID": 124552,
@@ -267,7 +282,8 @@
       "Upside": 11.99,
       "Is_Super_Sub": false,
       "Foto": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/VAS/220x220.png",
-      "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/VAS/60x60.png"
+      "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/VAS/60x60.png",
+      "Pontos_Reais": 10.9
     },
     "Atacante": {
       "ID": 92171,
@@ -279,7 +295,9 @@
       "Upside": 12.0,
       "Is_Super_Sub": true,
       "Foto": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/BOT/220x220.png",
-      "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/BOT/60x60.png"
+      "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/BOT/60x60.png",
+      "Pontos_Reais": 1.7
     }
-  }
+  },
+  "total_real_points": 79.68
 }
