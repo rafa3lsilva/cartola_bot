@@ -1,18 +1,18 @@
 ﻿Tipo,Posição,Jogador,Clube,Preço (C$),xP Projetado,Pontos Reais,Saldo (Real - xP),Desempenho,Scouts na Rodada
-Titular,Técnico,Pedro Emanuel,VAS,10.74,7.46,,,⏳ Aguardando Jogo,-
-Titular,Atacante,👑 Colidio [C],VAS,11.51,18.09,,,⏳ Aguardando Jogo,-
-Titular,Lateral,Luciano Juba,BAH,10.48,7.23,,,⏳ Aguardando Jogo,-
-Titular,Meia,Lescano,VAS,11.44,8.48,,,⏳ Aguardando Jogo,-
-Titular,Meia,Carrascal,FLA,11.99,7.14,,,⏳ Aguardando Jogo,-
-Titular,Zagueiro,Gustavo Gómez,PAL,11.14,7.27,,,⏳ Aguardando Jogo,-
-Titular,Goleiro,Carlos Miguel,PAL,8.68,7.55,,,⏳ Aguardando Jogo,-
-Titular,Zagueiro,Murilo,PAL,7.53,6.08,,,⏳ Aguardando Jogo,-
-Titular,Lateral,Piquerez,PAL,10.92,7.03,,,⏳ Aguardando Jogo,-
-Titular,Atacante,Andrés Gómez,VAS,13.07,12.23,,,⏳ Aguardando Jogo,-
-Titular,Atacante,Viveros,CAP,13.49,11.01,,,⏳ Aguardando Jogo,-
-Titular,Meia,Arias,PAL,13.74,8.44,,,⏳ Aguardando Jogo,-
-Reserva,Goleiro,⭐ Gabriel Batista [Reserva Luxo],BOT,5.86,3.34,,,⏳ Aguardando Jogo,-
-Reserva,Lateral,Pedro Lima,SAO,7.76,4.38,,,⏳ Aguardando Jogo,-
-Reserva,Zagueiro,Vitão,CAM,4.68,4.05,,,⏳ Aguardando Jogo,-
-Reserva,Meia,Thiago Mendes,VAS,7.62,7.3,,,⏳ Aguardando Jogo,-
-Reserva,Atacante,Alejo Véliz,BAH,6.46,5.96,,,⏳ Aguardando Jogo,-
+Titular,Técnico,Pedro Emanuel,VAS,10.74,7.46,7.38,-0.08,🎯 Na Meta,-
+Titular,Atacante,👑 Colidio [C],VAS,11.51,18.09,1.95,-16.14,❄️ Ficou Abaixo,"FF:1, FS:1"
+Titular,Lateral,Luciano Juba,BAH,10.48,7.23,13.8,6.57,🔥 Superou xP,"FF:1, G:1, SG:1"
+Titular,Meia,Lescano,VAS,11.44,8.48,6.6,-1.88,❄️ Ficou Abaixo,"DS:3, FF:2, FS:1"
+Titular,Meia,Carrascal,FLA,11.99,7.14,11.9,4.76,🔥 Superou xP,"DS:2, FC:3, FF:1, FS:2, G:1"
+Titular,Zagueiro,Gustavo Gómez,PAL,11.14,7.27,4.2,-3.07,❄️ Ficou Abaixo,"CA:1, DS:3, FC:2, FF:1, FS:1"
+Titular,Goleiro,Carlos Miguel,PAL,8.68,7.55,1.6,-5.95,❄️ Ficou Abaixo,"DE:2, GS:1"
+Titular,Zagueiro,Murilo,PAL,7.53,6.08,-0.6,-6.68,❄️ Ficou Abaixo,FC:2
+Titular,Lateral,Piquerez,PAL,10.92,7.03,2.7,-4.33,❄️ Ficou Abaixo,"DS:2, FC:1"
+Titular,Atacante,Andrés Gómez,VAS,13.07,12.23,6.3,-5.93,❄️ Ficou Abaixo,"DS:2, FC:2, FD:2, FS:3"
+Titular,Atacante,Viveros,CAP,13.49,11.01,18.7,7.69,🔥 Superou xP,"FC:2, FF:1, FS:5, G:2"
+Titular,Meia,Arias,PAL,13.74,8.44,10.8,2.36,🔥 Superou xP,"A:1, CA:1, DS:2, FC:2, FD:3, FF:1"
+Reserva,Goleiro,⭐ Gabriel Batista [Reserva Luxo],BOT,5.86,3.34,2.9,-0.44,🎯 Na Meta,"DE:3, GS:1"
+Reserva,Lateral,Pedro Lima,SAO,7.76,4.38,3.0,-1.38,❄️ Ficou Abaixo,DS:2
+Reserva,Zagueiro,Vitão,CAM,4.68,4.05,0.0,-4.05,❄️ Ficou Abaixo,-
+Reserva,Meia,Thiago Mendes,VAS,7.62,7.3,1.6,-5.7,❄️ Ficou Abaixo,"FC:2, FD:1, FS:2"
+Reserva,Atacante,Alejo Véliz,BAH,6.46,5.96,1.3,-4.66,❄️ Ficou Abaixo,"FC:1, FF:2"
