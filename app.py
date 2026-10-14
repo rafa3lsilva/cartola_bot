@@ -1190,14 +1190,19 @@ def main():
                             del st.session_state["custom_super_sub_pos"]
                         st.rerun()
 
-            # Seletor do Reserva de Luxo
+            # Seletor do Reserva de Luxo (Apenas jogadores de linha: Goleiro não pode ser Reserva de Luxo no Cartola PRO)
             if reservas:
                 st.markdown("---")
-                sub_res_names = [f"{r.get('Nome')} ({pos} - {r.get('Clube')})" for pos, r in reservas.items() if hasattr(r, 'get')]
-                sub_res_keys = list(reservas.keys())
+                outfield_reservas = {k: v for k, v in reservas.items() if k != 'Goleiro' and hasattr(v, 'get')}
+                sub_res_names = [f"{r.get('Nome')} ({pos} - {r.get('Clube')})" for pos, r in outfield_reservas.items()]
+                sub_res_keys = list(outfield_reservas.keys())
                 
                 # Identificar índice atual
-                super_sub_pos_chosen = st.session_state.get("custom_super_sub_pos", official_super_sub_pos or "Meia")
+                super_sub_pos_chosen = st.session_state.get("custom_super_sub_pos", official_super_sub_pos or "Atacante")
+                if super_sub_pos_chosen == 'Goleiro' or super_sub_pos_chosen not in sub_res_keys:
+                    super_sub_pos_chosen = "Atacante" if "Atacante" in sub_res_keys else (sub_res_keys[0] if sub_res_keys else "Meia")
+                    st.session_state["custom_super_sub_pos"] = super_sub_pos_chosen
+
                 curr_res_idx = 0
                 for idx, pos in enumerate(sub_res_keys):
                     if pos == super_sub_pos_chosen:
@@ -1217,15 +1222,18 @@ def main():
                         st.success(f"⭐ Reserva de Luxo definido: {reservas[chosen_pos].get('Nome')} ({chosen_pos})!")
                         st.rerun()
 
-        # Determinar super_sub ativo
-        super_sub_pos_chosen = st.session_state.get("custom_super_sub_pos", official_super_sub_pos or "Meia")
+        # Determinar super_sub ativo (Regra Oficial: estritamente jogadores de linha)
+        super_sub_pos_chosen = st.session_state.get("custom_super_sub_pos", official_super_sub_pos or "Atacante")
+        if super_sub_pos_chosen == 'Goleiro':
+            super_sub_pos_chosen = "Atacante"
         super_sub_id = None
         super_sub_name = ""
         if reservas:
-            if super_sub_pos_chosen not in reservas:
-                # Fallback para o de maior upside
+            outfield_res = {k: v for k, v in reservas.items() if k != 'Goleiro'}
+            if super_sub_pos_chosen not in outfield_res:
+                # Fallback para o jogador de linha com maior xP / Upside
                 best_up = -1.0
-                for pos, r in reservas.items():
+                for pos, r in outfield_res.items():
                     up = r.get('Upside', r.get('Media_Ajustada', 0)) if hasattr(r, 'get') else 0
                     if up > best_up:
                         best_up = up

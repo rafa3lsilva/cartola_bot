@@ -4,7 +4,7 @@
   "total_cost": 118.25,
   "total_xp_projected": 89.91,
   "captain_id": 143193,
-  "super_sub_pos": "Goleiro",
+  "super_sub_pos": "Atacante",
   "starters_ids": [
     98333,
     92171,
@@ -229,7 +229,7 @@
       "Preco": 4.48,
       "Media_Ajustada": 4.97,
       "Upside": 14.84,
-      "Is_Super_Sub": true,
+      "Is_Super_Sub": false,
       "Foto": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/CRU/220x220.png",
       "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/CRU/60x60.png"
     },
@@ -277,7 +277,7 @@
       "Preco": 7.04,
       "Media_Ajustada": 6.85,
       "Upside": 12.19,
-      "Is_Super_Sub": false,
+      "Is_Super_Sub": true,
       "Foto": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/BOT/220x220.png",
       "Escudo": "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/escudos/BOT/60x60.png"
     }
