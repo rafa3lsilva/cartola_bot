@@ -10,6 +10,8 @@ class TeamOptimizer:
         self.upside_lambda_atk = self.weights.get('upside_lambda_atk', 0.25)
         self.upside_lambda_def = self.weights.get('upside_lambda_def', 0.12)
         self.captain_upside_weight = self.weights.get('captain_upside_weight', 0.50)
+        self.top_scorer_weight = self.weights.get('top_scorer_weight', 0.35)
+        self.max_defenders_per_club = config.get('defaults', {}).get('max_defenders_per_club', 2)
 
     def optimize(self, df, budget, formation_name, max_players_per_club=None):
         """Usa Programação Linear Inteira Mista (MILP) para encontrar o time ideal com Capitão integrado e foco em alto teto (upside)."""
@@ -23,8 +25,9 @@ class TeamOptimizer:
         posicoes = dict(zip(ids, df['Posicao']))
         clubes = dict(zip(ids, df['Clube']))
         upsides = dict(zip(ids, df['Upside'])) if 'Upside' in df.columns else medias
+        goals_pg = dict(zip(ids, df['Goals_Per_Game'])) if 'Goals_Per_Game' in df.columns else {}
         
-        # Calcular scores efetivos combinando média esperada + peso de teto por posição
+        # Calcular scores efetivos combinando média esperada + peso de teto por posição e faro de gol
         effective_scores = {}
         cap_scores = {}
         for i in ids:
@@ -35,8 +38,10 @@ class TeamOptimizer:
             
             if pos in ['Meia', 'Atacante']:
                 effective_scores[i] = m + self.upside_lambda_atk * diff
-                # Capitão oficial (+50%): prioriza atacantes/meias de maior teto em confrontos favoráveis
-                cap_scores[i] = 0.50 * (m + self.captain_upside_weight * diff)
+                # Fator Artilheiro: atacantes/meias de alto volume de gols (ex: Viveros) ganham preferência para capitão
+                gpg = goals_pg.get(i, 0.0)
+                artilheiro_factor = 1.0 + min(0.35, gpg * self.top_scorer_weight)
+                cap_scores[i] = 0.50 * (m + self.captain_upside_weight * diff) * artilheiro_factor
             elif pos in ['Lateral', 'Zagueiro']:
                 effective_scores[i] = m + self.upside_lambda_def * diff
                 cap_scores[i] = 0.50 * (m + 0.15 * diff)
@@ -78,11 +83,21 @@ class TeamOptimizer:
             if posicoes[i] == 'Técnico':
                 prob += captain_vars[i] == 0, f"Tecnico_Nao_Capitao_{i}"
                 
-        # 6. Restrição de limite de atletas por clube (mitigação de risco)
+        # 6. Restrição de limite de atletas por clube (mitigação de risco geral)
         if max_players_per_club and max_players_per_club > 0:
             unique_clubs = set(clubes.values())
             for club in unique_clubs:
                 prob += pulp.lpSum([player_vars[i] for i in ids if clubes[i] == club]) <= max_players_per_club, f"Max_Clube_{club}"
+
+        # 6.1. Restrição de limite de defensores por clube (evita ruína de SG quádruplo)
+        if self.max_defenders_per_club and self.max_defenders_per_club > 0:
+            def_positions = {'Goleiro', 'Lateral', 'Zagueiro'}
+            unique_clubs = set(clubes.values())
+            for club in unique_clubs:
+                prob += pulp.lpSum([
+                    player_vars[i] for i in ids 
+                    if clubes[i] == club and posicoes[i] in def_positions
+                ]) <= self.max_defenders_per_club, f"Max_Defensores_Clube_{club}"
                 
         # 7. Resolver Modelo
         prob.solve(pulp.PULP_CBC_CMD(msg=0))

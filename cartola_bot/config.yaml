@@ -26,6 +26,8 @@ scoring:
     upside_lambda_atk: 0.25       # Peso do teto na função objetivo para Meias e Atacantes
     upside_lambda_def: 0.12       # Peso do teto na função objetivo para Laterais e Zagueiros
     captain_upside_weight: 0.50   # Ponderação do teto na escolha do capitão
+    derby_sg_penalty: 0.12        # Penalização na chance de SG em clássicos estaduais (alta volatilidade)
+    top_scorer_weight: 0.35       # Bonificação na escolha de capitão para artilheiros de alto volume
 
 formations:
   "4-3-3":
@@ -69,6 +71,7 @@ defaults:
   formation: "auto"
   auto_formation: true
   max_players_per_club: 5
+  max_defenders_per_club: 2 # Limite de no máximo 2 defensores do mesmo clube (evita ruína de SG)
   min_games: 2
   min_games_threshold: 3 # Só filtra min_games se o máximo de jogos no DF for maior que isso
 

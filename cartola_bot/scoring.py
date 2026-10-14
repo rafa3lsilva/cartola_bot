@@ -16,6 +16,38 @@ class Scorer:
         self.shrinkage_k = 5
         self.bias_correction = 0.92
 
+        # Matriz de Clássicos Regionais (Dérbis) do Futebol Brasileiro
+        self.derby_pairs = [
+            ({'PAL', 'COR'}, "Derby Paulista"),
+            ({'PAL', 'SAO'}, "Choque-Rei"),
+            ({'COR', 'SAO'}, "Majestoso"),
+            ({'SAN', 'COR'}, "Clássico Alvinegro"),
+            ({'SAN', 'PAL'}, "Clássico da Saudade"),
+            ({'SAN', 'SAO'}, "San-São"),
+            ({'FLA', 'FLU'}, "Fla-Flu"),
+            ({'FLA', 'VAS'}, "Clássico dos Milhões"),
+            ({'BOT', 'FLA'}, "Clássico da Rivalidade"),
+            ({'BOT', 'FLU'}, "Clássico Vovô"),
+            ({'BOT', 'VAS'}, "Clássico da Amizade"),
+            ({'FLU', 'VAS'}, "Clássico dos Gigantes"),
+            ({'CAM', 'CRU'}, "Clássico Mineiro"),
+            ({'CAM', 'AME'}, "Clássico das Multidões"),
+            ({'CRU', 'AME'}, "Coelho vs Raposa"),
+            ({'GRE', 'INT'}, "Gre-Nal"),
+            ({'JUV', 'GRE'}, "Juve-Gre"),
+            ({'JUV', 'INT'}, "Juve-Nal"),
+            ({'BAH', 'VIT'}, "Ba-Vi"),
+            ({'CAP', 'CFC'}, "Athletiba"),
+            ({'CAP', 'PAR'}, "Paratico"),
+            ({'CFC', 'PAR'}, "Paratiba"),
+            ({'CEA', 'FOR'}, "Clássico-Rei"),
+            ({'GOI', 'ACG'}, "Clássico do Centro-Oeste"),
+            ({'GOI', 'VIL'}, "Derby Goiano"),
+            ({'CHA', 'AVA'}, "Clássico Catarinense"),
+            ({'CHA', 'CRI'}, "Clássico Catarinense"),
+            ({'AVA', 'FIG'}, "Clássico de Florianópolis")
+        ]
+
     def process_data(self, mercado_data, partidas_data, target_athlete_ids=None):
         """Processa os dados brutos e calcula o xP com Fator Momento e Matriz de Cedência de Scouts."""
         atletas = mercado_data.get('atletas', [])
@@ -156,10 +188,13 @@ class Scorer:
             xp = round(max(0.0, xp), 2)
             min_valorizar = round(preco * 0.37, 2)
             
-            # Teto / Upside Estratégico (potencial de mitada por posição e favorabilidade de confronto)
+            # Teto / Upside Estratégico (potencial de mitada por posição, favorabilidade e faro de gol)
+            goals_per_game = scout.get('G', 0) / num_j
             if posicao in ['Meia', 'Atacante']:
                 matchup_mult = 1.35 if (is_home and opp_pos >= 15) else (1.15 if is_home else 0.95)
-                upside_val = xp + (g_pts * 1.5 + a_pts * 1.2 + fin_pts * 0.8 + ds_pts * 0.4) * matchup_mult
+                # Fator Artilheiro: atacantes/meias de alta conversão de gols (ex: Viveros) ganham teto bimodal superior
+                artilheiro_mult = min(1.30, 1.0 + (goals_per_game * 0.40)) if jogos >= 4 else 1.0
+                upside_val = xp + (g_pts * 1.5 + a_pts * 1.2 + fin_pts * 0.8 + ds_pts * 0.4) * matchup_mult * artilheiro_mult
             elif posicao in ['Lateral', 'Zagueiro']:
                 sg_ceiling = 5.0 if sg_prob >= 0.40 else 2.5
                 upside_val = base_est + sg_ceiling + (ds_pts * 0.8 + fin_pts * 0.4 + g_pts * 0.4 + a_pts * 0.4) * (1.2 if is_home else 1.0)
@@ -180,6 +215,9 @@ class Scorer:
             opp_abrev = opp_obj.get('abreviacao', 'ADV')
             confronto_str = f"{'vs' if is_home else '@'} {opp_abrev} ({'C' if is_home else 'F'})"
 
+            is_derby = matchup.get('is_derby', False) if matchup else False
+            derby_name = matchup.get('derby_name', '') if matchup else ''
+
             tag, tag_color, status_cons, justificativa = self._generate_tag_and_justification(
                 posicao=posicao,
                 preco=preco,
@@ -191,7 +229,10 @@ class Scorer:
                 opp_abrev=opp_abrev,
                 opp_pos=opp_pos,
                 scout=scout,
-                jogos=jogos
+                jogos=jogos,
+                is_derby=is_derby,
+                derby_name=derby_name,
+                goals_per_game=goals_per_game
             )
 
             player_data = {
@@ -208,6 +249,9 @@ class Scorer:
                 'Upside': upside,
                 'SG_Prob': round(sg_prob * 100, 1),
                 'Jogos': jogos,
+                'Goals_Per_Game': round(goals_per_game, 2),
+                'Is_Derby': is_derby,
+                'Derby_Name': derby_name,
                 'Foto': foto_url,
                 'Escudo': escudo_url,
                 'Confronto': confronto_str,
@@ -216,7 +260,6 @@ class Scorer:
                 'Tag': tag,
                 'Tag_Color': tag_color,
                 'Status_Consultoria': status_cons,
-                'Justificativa': justificativa
             }
             
             processed.append(player_data)
@@ -310,11 +353,26 @@ class Scorer:
         sg_away = weights.get('sg_away_penalty', 0.10)
         opp_weight = weights.get('opp_strength_weight', 0.015)
         
+        clubes_dict = partidas_data.get('clubes', {})
+        derby_penalty = weights.get('derby_sg_penalty', 0.12)
+        
         for p in partidas_data.get('partidas', []):
             casa_id = str(p.get('clube_casa_id'))
             visi_id = str(p.get('clube_visitante_id'))
             casa_pos = p.get('clube_casa_posicao', 10)
             visi_pos = p.get('clube_visitante_posicao', 10)
+            
+            casa_abrev = clubes_dict.get(casa_id, {}).get('abreviacao', '')
+            visi_abrev = clubes_dict.get(visi_id, {}).get('abreviacao', '')
+            
+            # Identificar se é Clássico Estadual / Dérbi
+            derby_name = None
+            pair = {casa_abrev, visi_abrev}
+            for d_set, d_name in self.derby_pairs:
+                if d_set == pair:
+                    derby_name = d_name
+                    break
+            is_derby = (derby_name is not None)
             
             # 1. Calcular Fator Momento (Aproveitamento recente ponderado)
             form_casa = self._calculate_form_score(p.get('aproveitamento_mandante', []))
@@ -330,9 +388,13 @@ class Scorer:
             sg_prob_casa = sg_base + sg_home + (visi_pos - casa_pos) * opp_weight + form_diff
             if visi_pos >= 16 and casa_pos <= 10:
                 sg_prob_casa += 0.08  # Boost não-linear de SG para mandante favorito contra Z4/Z5
+            if is_derby:
+                sg_prob_casa -= derby_penalty  # Clássicos têm histórico de paridade e alta taxa de gols mútuos
             sg_prob_casa = max(0.05, min(0.85, sg_prob_casa))
             
             sg_prob_visi = sg_base - sg_away + (casa_pos - visi_pos) * opp_weight - form_diff
+            if is_derby:
+                sg_prob_visi -= derby_penalty
             sg_prob_visi = max(0.05, min(0.80, sg_prob_visi))
             
             partidas_info[casa_id] = {
@@ -340,14 +402,18 @@ class Scorer:
                 'opp_id': visi_id,
                 'opp_pos': visi_pos,
                 'sg_prob': sg_prob_casa,
-                'momentum': round(float(np.clip(momentum_casa, 0.85, 1.15)), 3)
+                'momentum': round(float(np.clip(momentum_casa, 0.85, 1.15)), 3),
+                'is_derby': is_derby,
+                'derby_name': derby_name
             }
             partidas_info[visi_id] = {
                 'is_home': False, 
                 'opp_id': casa_id,
                 'opp_pos': casa_pos,
                 'sg_prob': sg_prob_visi,
-                'momentum': round(float(np.clip(momentum_visi, 0.85, 1.15)), 3)
+                'momentum': round(float(np.clip(momentum_visi, 0.85, 1.15)), 3),
+                'is_derby': is_derby,
+                'derby_name': derby_name
             }
             
         return partidas_info
@@ -369,7 +435,7 @@ class Scorer:
         
         return total_pts / max_pts if max_pts > 0 else 0.45
 
-    def _generate_tag_and_justification(self, posicao, preco, media_bruta, xp, upside, sg_prob_pct, is_home, opp_abrev, opp_pos, scout, jogos):
+    def _generate_tag_and_justification(self, posicao, preco, media_bruta, xp, upside, sg_prob_pct, is_home, opp_abrev, opp_pos, scout, jogos, is_derby=False, derby_name='', goals_per_game=0.0):
         """Gera tag inteligente e justificativa objetiva em texto claro para cada atleta."""
         loc_str = "Mandante" if is_home else "Visitante"
         num_j = max(1, jogos)
@@ -398,6 +464,9 @@ class Scorer:
                 tag_color = "#ef4444"
                 status_cons = "TROCAR"
                 just = f"{loc_str} com baixa probabilidade de SG ({sg_prob_pct:.0f}%); custo-benefício desfavorável para a rodada."
+
+            if is_derby:
+                just += f" ⚠️ Clássico ({derby_name or 'Dérbi'}) com risco elevado de perda de SG."
 
         # 2. Meias e Atacantes
         elif posicao in ['Meia', 'Atacante']:
@@ -428,11 +497,16 @@ class Scorer:
                 else:
                     just = f"Baixo volume de scouts decisivos recentes; retorno projetado insuficiente para o preço."
 
+            if goals_per_game >= 0.40 and jogos >= 4:
+                just += f" ⭐ Artilheiro prolífico ({goals_per_game:.2f} gols/jogo)."
+
         # 3. Técnico
         else:
             tag = "Boa Opção"
             tag_color = "#f59e0b"
             status_cons = "MANTER"
             just = f"Comanda equipe {loc_str.lower()} em duelo contra {opp_abrev}."
+            if is_derby:
+                just += f" (Clássico: {derby_name or 'Dérbi'})."
 
         return tag, tag_color, status_cons, just
