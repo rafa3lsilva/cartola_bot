@@ -213,7 +213,10 @@ class Scorer:
 
             opp_obj = clubes.get(opp_id, {})
             opp_abrev = opp_obj.get('abreviacao', 'ADV')
-            confronto_str = f"{'vs' if is_home else '@'} {opp_abrev} ({'C' if is_home else 'F'})"
+            home_team = clube_abrev if is_home else opp_abrev
+            away_team = opp_abrev if is_home else clube_abrev
+            loc_flag = "(C)" if is_home else "(F)"
+            confronto_str = f"{home_team} x {away_team} {loc_flag}"
 
             is_derby = matchup.get('is_derby', False) if matchup else False
             derby_name = matchup.get('derby_name', '') if matchup else ''

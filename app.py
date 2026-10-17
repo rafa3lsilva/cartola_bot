@@ -1139,67 +1139,38 @@ def main():
         total_cost = selected_df['Preco'].sum()
         budget_left = budget - total_cost
 
-        # Ferramenta de Substituição Manual & Escolha de Capitão
-        with st.expander("⚙️ Personalizar Escalação (Substituir Titulares & Mudar Capitão)", expanded=False):
-            st.caption("Substitua qualquer atleta titular por outro jogador provável do mercado ou troque o capitão da equipe:")
-            sub_col1, sub_col2, sub_col3 = st.columns([2.5, 3.5, 1.5])
-            with sub_col1:
-                titular_names = selected_df['Nome'].tolist()
-                titular_out_name = st.selectbox(
-                    "Titular que vai sair:",
-                    options=titular_names,
-                    key="select_titular_out"
-                )
-            
-            out_rows = selected_df[selected_df['Nome'] == titular_out_name]
-            if not out_rows.empty:
-                out_row = out_rows.iloc[0]
-                out_pos = out_row['Posicao']
-                
-                with sub_col2:
-                    market_pos_df = df[df['Posicao'] == out_pos].sort_values(by='Media_Ajustada', ascending=False)
-                    available_market = market_pos_df[~market_pos_df['ID'].isin(selected_df['ID'])].copy()
-                    cand_options = available_market['Nome'].tolist()
-                    if cand_options:
-                        cand_in_name = st.selectbox(
-                            f"Substituto Provável ({out_pos}):",
-                            options=cand_options,
-                            format_func=lambda n: f"{n} ({available_market[available_market['Nome']==n]['Clube'].values[0]} • C$ {available_market[available_market['Nome']==n]['Preco'].values[0]:.2f} • xP {available_market[available_market['Nome']==n]['Media_Ajustada'].values[0]:.2f})",
-                            key="select_market_in"
-                        )
-                    else:
-                        cand_in_name = None
-                        st.warning("Nenhum atleta provável disponível nesta posição.")
-                        
-                with sub_col3:
-                    st.write("")
-                    st.write("")
-                    if cand_in_name and st.button("🔄 Substituir", use_container_width=True, type="primary", key="btn_apply_sub"):
-                        new_player_row = available_market[available_market['Nome'] == cand_in_name].iloc[0].copy()
-                        new_player_row['Is_Capitao'] = bool(out_row.get('Is_Capitao', False))
-                        new_df = selected_df[selected_df['Nome'] != titular_out_name].copy()
-                        new_df = pd.concat([new_df, pd.DataFrame([new_player_row])], ignore_index=True)
-                        st.session_state["custom_starters_df"] = new_df
-                        st.session_state["custom_mode_owner"] = app_mode
-                        st.success(f"✅ {titular_out_name} substituído por {cand_in_name}!")
-                        st.rerun()
-
-            st.markdown("---")
-            cap_c1, cap_c2, cap_c3 = st.columns([3, 2, 2])
-            with cap_c1:
+        # Controles Rápidos: Capitão, Reserva de Luxo & Reset de Modificações
+        with st.container():
+            ctrl_c1, ctrl_c2, ctrl_c3 = st.columns([3, 3, 2])
+            with ctrl_c1:
                 current_cap = selected_df[selected_df['Is_Capitao']]['Nome'].values[0] if 'Is_Capitao' in selected_df.columns and selected_df['Is_Capitao'].any() else selected_df.iloc[0]['Nome']
-                new_cap_name = st.selectbox("👑 Mudar Capitão:", options=selected_df['Nome'].tolist(), index=selected_df['Nome'].tolist().index(current_cap) if current_cap in selected_df['Nome'].tolist() else 0, key="select_captain_change")
-            with cap_c2:
-                st.write("")
-                st.write("")
-                if st.button("👑 Definir Capitão", use_container_width=True, key="btn_apply_captain"):
+                cap_options = selected_df['Nome'].tolist()
+                cap_idx = cap_options.index(current_cap) if current_cap in cap_options else 0
+                new_cap_name = st.selectbox("👑 Capitão (1.5x Pontos):", options=cap_options, index=cap_idx, key="select_captain_change")
+                if new_cap_name != current_cap:
                     updated_df = selected_df.copy()
                     updated_df['Is_Capitao'] = (updated_df['Nome'] == new_cap_name)
                     st.session_state["custom_starters_df"] = updated_df
                     st.session_state["custom_mode_owner"] = app_mode
-                    st.success(f"👑 Capitão definido: {new_cap_name}!")
                     st.rerun()
-            with cap_c3:
+
+            with ctrl_c2:
+                if reservas:
+                    all_reservas = {k: v for k, v in reservas.items() if hasattr(v, 'get')}
+                    sub_res_names = [f"{r.get('Nome')} ({pos} - {r.get('Clube')})" for pos, r in all_reservas.items()]
+                    sub_res_keys = list(all_reservas.keys())
+                    super_sub_pos_chosen = st.session_state.get("custom_super_sub_pos", official_super_sub_pos or "Atacante")
+                    if super_sub_pos_chosen not in sub_res_keys:
+                        super_sub_pos_chosen = "Atacante" if "Atacante" in sub_res_keys else (sub_res_keys[0] if sub_res_keys else "Meia")
+                    curr_res_idx = sub_res_keys.index(super_sub_pos_chosen) if super_sub_pos_chosen in sub_res_keys else 0
+                    chosen_res_label = st.selectbox("⭐ Reserva de Luxo (Banco):", options=sub_res_names, index=curr_res_idx, key="select_super_sub_change")
+                    chosen_idx = sub_res_names.index(chosen_res_label)
+                    chosen_pos = sub_res_keys[chosen_idx]
+                    if chosen_pos != super_sub_pos_chosen:
+                        st.session_state["custom_super_sub_pos"] = chosen_pos
+                        st.rerun()
+
+            with ctrl_c3:
                 st.write("")
                 st.write("")
                 if "custom_starters_df" in st.session_state or "custom_super_sub_pos" in st.session_state:
@@ -1208,38 +1179,6 @@ def main():
                             del st.session_state["custom_starters_df"]
                         if "custom_super_sub_pos" in st.session_state:
                             del st.session_state["custom_super_sub_pos"]
-                        st.rerun()
-
-            # Seletor do Reserva de Luxo (Qualquer um dos 5 reservas pode ser escolhido, com preferência natural por Atacante/Meia)
-            if reservas:
-                st.markdown("---")
-                all_reservas = {k: v for k, v in reservas.items() if hasattr(v, 'get')}
-                sub_res_names = [f"{r.get('Nome')} ({pos} - {r.get('Clube')})" for pos, r in all_reservas.items()]
-                sub_res_keys = list(all_reservas.keys())
-                
-                # Identificar índice atual
-                super_sub_pos_chosen = st.session_state.get("custom_super_sub_pos", official_super_sub_pos or "Atacante")
-                if super_sub_pos_chosen not in sub_res_keys:
-                    super_sub_pos_chosen = "Atacante" if "Atacante" in sub_res_keys else (sub_res_keys[0] if sub_res_keys else "Meia")
-                    st.session_state["custom_super_sub_pos"] = super_sub_pos_chosen
-
-                curr_res_idx = 0
-                for idx, pos in enumerate(sub_res_keys):
-                    if pos == super_sub_pos_chosen:
-                        curr_res_idx = idx
-                        break
-                        
-                res_c1, res_c2 = st.columns([3, 2])
-                with res_c1:
-                    chosen_res_label = st.selectbox("⭐ Mudar Reserva de Luxo (Banco):", options=sub_res_names, index=curr_res_idx, key="select_super_sub_change")
-                with res_c2:
-                    st.write("")
-                    st.write("")
-                    if st.button("⭐ Definir Reserva de Luxo", use_container_width=True, key="btn_apply_super_sub"):
-                        chosen_idx = sub_res_names.index(chosen_res_label)
-                        chosen_pos = sub_res_keys[chosen_idx]
-                        st.session_state["custom_super_sub_pos"] = chosen_pos
-                        st.success(f"⭐ Reserva de Luxo definido: {reservas[chosen_pos].get('Nome')} ({chosen_pos})!")
                         st.rerun()
 
         # Determinar super_sub ativo
