@@ -756,7 +756,7 @@ def render_live_player_card(p, pinfo=None, is_captain=False, is_super_sub=False)
     )
     st.html(html)
 
-def handle_globo_escalacao_result(success, resp_globo, rodada_num, selected_df, capitao_row, reservas):
+def handle_globo_escalacao_result(success, resp_globo, rodada_num, selected_df, capitao_row, reservas, super_sub_pos="Atacante"):
     if success:
         st.balloons()
         st.success("🎉 **SUCESSO ABSOLUTO!** O time foi escalado diretamente na sua conta oficial do Cartola FC!")
@@ -765,7 +765,7 @@ def handle_globo_escalacao_result(success, resp_globo, rodada_num, selected_df, 
             starters_df=selected_df,
             captain_id=int(capitao_row['ID']),
             reserves_dict=reservas,
-            super_sub_pos="Meia" if "Acevedo" in str(reservas) else "Atacante"
+            super_sub_pos=super_sub_pos
         )
         time.sleep(3.5)
         st.rerun()
@@ -775,6 +775,163 @@ def handle_globo_escalacao_result(success, resp_globo, rodada_num, selected_df, 
             st.info("💡 **Como renovar em 10 segundos:**\n1. No navegador, acesse o Cartola e aperte **F12** -> aba **Rede**\n2. Copie o valor do cabeçalho **`Authorization`** (`Bearer eyJ...`)\n3. Cole no menu lateral em **'🔑 Renovar Token Globo'** e clique em **Atualizar Token**!")
         else:
             st.error(f"❌ Erro ao enviar para o Cartola: {resp_globo}")
+
+def sync_team_from_globo(api, token, rodada_num, mercado_data, partidas_data, scorer):
+    """
+    Busca a escalação mais recente direto da conta oficial do Cartola FC,
+    processa todos os titulares e reservas com os metadados do modelo,
+    e persiste como time oficial ativo (JSON local + Google Sheets).
+    """
+    if not token:
+        return False, "Token de autenticação não encontrado. Conecte sua conta Globo no menu lateral para sincronizar."
+
+    try:
+        user_glb_team = api.get_user_team(token)
+    except Exception as e:
+        return False, f"Falha ao conectar à API da Globo: {str(e)}"
+
+    if not user_glb_team:
+        return False, "Não foi possível obter a escalação da Globo. Verifique se seu token expirou ou renove a sessão."
+
+    # 1. Extração dos Titulares
+    raw_atletas = user_glb_team.get('atletas', [])
+    starters_ids = []
+    for a in raw_atletas:
+        if isinstance(a, dict):
+            a_id = a.get('atleta_id', a.get('id'))
+        else:
+            a_id = a
+        if a_id is not None:
+            try:
+                starters_ids.append(int(a_id))
+            except (ValueError, TypeError):
+                pass
+
+    if not starters_ids:
+        return False, "Nenhum atleta titular encontrado no time retornado pelo Cartola FC."
+
+    # 2. Capitão
+    cap_id_raw = user_glb_team.get('capitao_id') or user_glb_team.get('capitao')
+    cap_id = int(cap_id_raw) if cap_id_raw else None
+
+    # 3. Reserva de Luxo
+    super_sub_id_raw = user_glb_team.get('reserva_luxo_id') or user_glb_team.get('reserva_luxo')
+    super_sub_id = int(super_sub_id_raw) if super_sub_id_raw else None
+
+    # 4. Reservas
+    raw_reservas = user_glb_team.get('reservas', {})
+    pos_id_to_name = {
+        1: 'Goleiro',
+        2: 'Lateral',
+        3: 'Zagueiro',
+        4: 'Meia',
+        5: 'Atacante'
+    }
+    pos_name_map = {
+        'goleiro': 'Goleiro', 'lateral': 'Lateral', 'zagueiro': 'Zagueiro', 'meia': 'Meia', 'atacante': 'Atacante',
+        'gol': 'Goleiro', 'lat': 'Lateral', 'zag': 'Zagueiro', 'mei': 'Meia', 'ata': 'Atacante'
+    }
+
+    reserves_ids = {}
+    if isinstance(raw_reservas, dict):
+        for k, val in raw_reservas.items():
+            pos_name = None
+            try:
+                pos_int = int(k)
+                pos_name = pos_id_to_name.get(pos_int)
+            except (ValueError, TypeError):
+                pos_name = pos_name_map.get(str(k).lower().strip())
+
+            if not pos_name and isinstance(val, dict) and 'posicao_id' in val:
+                pos_name = pos_id_to_name.get(int(val['posicao_id']))
+
+            r_id = None
+            if isinstance(val, dict):
+                r_id = val.get('atleta_id', val.get('id'))
+            elif val is not None:
+                try:
+                    r_id = int(val)
+                except Exception:
+                    pass
+
+            if pos_name and r_id:
+                reserves_ids[pos_name] = int(r_id)
+
+    elif isinstance(raw_reservas, list):
+        for item in raw_reservas:
+            if isinstance(item, dict):
+                p_id = item.get('posicao_id')
+                pos_name = pos_id_to_name.get(int(p_id)) if p_id else None
+                a_id = item.get('atleta_id', item.get('id'))
+                if pos_name and a_id:
+                    reserves_ids[pos_name] = int(a_id)
+
+    # 5. Processamento com metadados do modelo
+    all_needed_ids = list(set(starters_ids + list(reserves_ids.values())))
+    full_df = scorer.process_data(mercado_data, partidas_data, target_athlete_ids=all_needed_ids)
+
+    # DataFrame dos Titulares
+    starters_df = full_df[full_df['ID'].isin(starters_ids)].copy()
+
+    # Validação do capitão
+    if cap_id not in starters_df['ID'].tolist():
+        if not starters_df.empty:
+            cap_id = int(starters_df.sort_values(by='Media_Ajustada', ascending=False).iloc[0]['ID'])
+        else:
+            cap_id = starters_ids[0]
+
+    starters_df['Is_Capitao'] = (starters_df['ID'] == cap_id)
+
+    # Dicionário dos Reservas
+    reserves_dict = {}
+    super_sub_pos = "Atacante"
+    for pos, r_id in reserves_ids.items():
+        sub_df = full_df[full_df['ID'] == r_id]
+        if not sub_df.empty:
+            r_series = sub_df.iloc[0].copy()
+            starter_pos_players = starters_df[starters_df['Posicao'] == pos]
+            worst_starter_xp = starter_pos_players['Media_Ajustada'].min() if not starter_pos_players.empty else 0.0
+            r_series['Worst_Starter_XP'] = worst_starter_xp
+            r_series['Expected_Gain'] = round(max(0.0, (r_series.get('Upside', r_series.get('Media_Ajustada', 0.0)) - worst_starter_xp) * 0.4), 2)
+            reserves_dict[pos] = r_series
+            if super_sub_id and int(r_id) == int(super_sub_id):
+                super_sub_pos = pos
+
+    if not super_sub_id or super_sub_pos not in reserves_dict:
+        if 'Atacante' in reserves_dict:
+            super_sub_pos = 'Atacante'
+        elif 'Meia' in reserves_dict:
+            super_sub_pos = 'Meia'
+        elif reserves_dict:
+            super_sub_pos = list(reserves_dict.keys())[0]
+
+    actual_round = rodada_num
+    if user_glb_team.get('rodada'):
+        try:
+            actual_round = int(user_glb_team['rodada'])
+        except Exception:
+            pass
+    elif actual_round == '?':
+        actual_round = 31
+
+    # 6. Salvar snapshot oficial
+    save_official_team(
+        rodada=actual_round,
+        starters_df=starters_df,
+        captain_id=cap_id,
+        reserves_dict=reserves_dict,
+        super_sub_pos=super_sub_pos
+    )
+
+    # Limpar estados transitórios locais
+    if "custom_starters_df" in st.session_state:
+        del st.session_state["custom_starters_df"]
+    if "custom_reserves" in st.session_state:
+        del st.session_state["custom_reserves"]
+    if "custom_super_sub_pos" in st.session_state:
+        del st.session_state["custom_super_sub_pos"]
+
+    return True, f"Time da Rodada {actual_round} sincronizado com sucesso da Globo ({len(starters_df)} titulares e {len(reserves_dict)} reservas)!"
 
 def render_login_screen():
     st.html('''
@@ -914,6 +1071,9 @@ def main():
         ''')
 
         if active_token:
+            if st.button("📥 Sincronizar com a Globo", use_container_width=True, key="btn_sync_sidebar", help="Importa e sincroniza a escalação atual salva no Cartola FC"):
+                st.session_state["trigger_sync_globo"] = True
+                st.rerun()
             if st.button("🚪 Sair / Desconectar Conta", use_container_width=True, key="btn_logout_sidebar"):
                 AuthManager.logout()
                 st.session_state["cartola_session"] = None
@@ -1060,8 +1220,20 @@ def main():
         official_reserves_ids = official_data.get('reserves_ids', {})
         official_super_sub_pos = official_data.get('super_sub_pos', 'Atacante')
         
+        # Se foi disparada sincronização com a Globo pelo menu lateral
+        if st.session_state.get("trigger_sync_globo"):
+            st.session_state["trigger_sync_globo"] = False
+            token_to_use = active_token or (st.secrets.get("cartola_token", "") if hasattr(st, "secrets") else "")
+            with st.spinner("📥 Sincronizando escalação diretamente da Globo..."):
+                sync_ok, sync_msg = sync_team_from_globo(api, token_to_use, rodada_num, mercado_data, partidas_data, scorer)
+                if sync_ok:
+                    st.success(f"✅ {sync_msg}")
+                    time.sleep(1.2)
+                    st.rerun()
+                else:
+                    st.error(f"❌ {sync_msg}")
+
         target_ids = (official_starters_ids + list(official_reserves_ids.values())) if app_mode == "oficial" else None
-        
         with st.spinner("Processando dados dos atletas e confrontos..."):
             df = scorer.process_data(mercado_data, partidas_data, target_athlete_ids=target_ids)
             
@@ -1131,6 +1303,10 @@ def main():
                 reservas = optimizer.get_reservas(df, selected_df)
 
         reservas = reservas or {}
+        if "custom_reserves" in st.session_state and st.session_state.get("custom_mode_owner") == app_mode:
+            reservas = dict(reservas)
+            for pos_name, r_cand in st.session_state["custom_reserves"].items():
+                reservas[pos_name] = r_cand
 
         capitao_row = selected_df[selected_df['Is_Capitao']].iloc[0] if 'Is_Capitao' in selected_df.columns and selected_df['Is_Capitao'].any() else selected_df.iloc[0]
         capitao_nome = capitao_row['Nome']
@@ -1173,12 +1349,14 @@ def main():
             with ctrl_c3:
                 st.write("")
                 st.write("")
-                if "custom_starters_df" in st.session_state or "custom_super_sub_pos" in st.session_state:
+                if "custom_starters_df" in st.session_state or "custom_super_sub_pos" in st.session_state or "custom_reserves" in st.session_state:
                     if st.button("⏪ Resetar Modificações", use_container_width=True, key="btn_reset_custom_team"):
                         if "custom_starters_df" in st.session_state:
                             del st.session_state["custom_starters_df"]
                         if "custom_super_sub_pos" in st.session_state:
                             del st.session_state["custom_super_sub_pos"]
+                        if "custom_reserves" in st.session_state:
+                            del st.session_state["custom_reserves"]
                         st.rerun()
 
         # Determinar super_sub ativo
@@ -1208,14 +1386,14 @@ def main():
 
         # Banner de Ação Principal (Escalar no Cartola / Salvar)
         st.markdown("")
-        banner_c1, banner_c2 = st.columns([3, 2])
+        banner_c1, banner_c2 = st.columns([2.8, 2.7])
         with banner_c1:
             super_sub_badge_txt = f" | ⭐ Reserva de Luxo: **{super_sub_name} ({super_sub_pos_chosen})**" if super_sub_name else ""
             st.markdown(f"🛡️ **Time M1TOS EC • Rodada {rodada_num}** | Projeção: **{total_xp:.2f} pts** | Custo: **C$ {total_cost:.2f}** | Capitão: **👑 {capitao_nome}**{super_sub_badge_txt}")
         with banner_c2:
-            act_b1, act_b2 = st.columns(2)
+            act_b1, act_b2, act_b3 = st.columns(3)
             with act_b1:
-                if st.button("💾 Salvar Como Oficial", use_container_width=True, key="btn_main_save_banner"):
+                if st.button("💾 Salvar Oficial", use_container_width=True, key="btn_main_save_banner"):
                     save_official_team(
                         rodada=rodada_num,
                         starters_df=selected_df,
@@ -1240,7 +1418,18 @@ def main():
                                 reserves_dict=reservas,
                                 super_sub_id=super_sub_id
                             )
-                            handle_globo_escalacao_result(success, resp_globo, rodada_num, selected_df, capitao_row, reservas)
+                            handle_globo_escalacao_result(success, resp_globo, rodada_num, selected_df, capitao_row, reservas, super_sub_pos=super_sub_pos_chosen)
+            with act_b3:
+                if st.button("📥 Puxar da Globo", use_container_width=True, key="btn_main_sync_banner", help="Importa as alterações e escalação salvas no app do Cartola FC"):
+                    with st.spinner("📥 Sincronizando time direto da sua conta Globo..."):
+                        token_to_use = active_token or (st.secrets.get("cartola_token", "") if hasattr(st, "secrets") else "")
+                        sync_ok, sync_msg = sync_team_from_globo(api, token_to_use, rodada_num, mercado_data, partidas_data, scorer)
+                        if sync_ok:
+                            st.success(f"✅ {sync_msg}")
+                            time.sleep(1.2)
+                            st.rerun()
+                        else:
+                            st.error(f"❌ {sync_msg}")
 
         # 2. Alternador de Visualização Expandido
         tab_market, tab_consult, tab_cards, tab_live, tab_table, tab_comp = st.tabs([
@@ -1402,7 +1591,7 @@ def main():
                 token_active = st.session_state.get("cartola_token", "")
                 
                 if token_active:
-                    btn_c1, btn_c2 = st.columns(2)
+                    btn_c1, btn_c2, btn_c3 = st.columns(3)
                     with btn_c1:
                         if st.button(f"💾 SALVAR NO APP (RODADA {rodada_num})", use_container_width=True, key="btn_save_advisor"):
                             best_res_pos_calc = None
@@ -1433,7 +1622,17 @@ def main():
                                     reserves_dict=reservas,
                                     super_sub_id=super_sub_id
                                 )
-                                handle_globo_escalacao_result(success, resp_globo, rodada_num, selected_df, capitao_row, reservas)
+                                handle_globo_escalacao_result(success, resp_globo, rodada_num, selected_df, capitao_row, reservas, super_sub_pos=super_sub_pos_chosen)
+                    with btn_c3:
+                        if st.button("📥 PUXAR DA GLOBO", use_container_width=True, key="btn_sync_advisor", help="Importa alterações feitas no app oficial do Cartola"):
+                            with st.spinner("📥 Sincronizando com a sua conta do Cartola FC..."):
+                                sync_ok, sync_msg = sync_team_from_globo(api, token_active, rodada_num, mercado_data, partidas_data, scorer)
+                                if sync_ok:
+                                    st.success(f"✅ {sync_msg}")
+                                    time.sleep(1.2)
+                                    st.rerun()
+                                else:
+                                    st.error(f"❌ {sync_msg}")
                 else:
                     act_col1, act_col2 = st.columns([3, 2])
                     with act_col1:
@@ -1507,11 +1706,44 @@ def main():
                         gain = r.get('Expected_Gain', 0) if hasattr(r, 'get') else 0
                         render_player_card(r, is_super_sub=is_super, sub_gain=gain)
 
+                        # Seletor para troca manual de reserva desta posição
+                        starter_pos_players = selected_df[selected_df['Posicao'] == pos]
+                        cheapest_price = starter_pos_players['Preco'].min() if not starter_pos_players.empty else 999.0
+                        available_bench_candidates = df[
+                            (df['Posicao'] == pos) & 
+                            (~df['ID'].isin(selected_df['ID'].tolist())) & 
+                            (df['Preco'] <= cheapest_price)
+                        ].copy()
+
+                        if not available_bench_candidates.empty:
+                            with st.popover(f"🔄 Trocar {pos[:3]}", use_container_width=True):
+                                st.caption(f"Opções para **{pos}** (máx. C$ {cheapest_price:.2f}):")
+                                cand_list = available_bench_candidates.sort_values(by=['Upside', 'Media_Ajustada'], ascending=[False, False])
+                                cand_labels = [f"{row['Nome']} ({row['Clube']} • C$ {row['Preco']:.2f} • xP {row['Media_Ajustada']:.2f})" for _, row in cand_list.iterrows()]
+                                current_res_id = r.get('ID') if hasattr(r, 'get') else None
+                                current_cand_idx = 0
+                                for c_i, (_, c_row) in enumerate(cand_list.iterrows()):
+                                    if c_row['ID'] == current_res_id:
+                                        current_cand_idx = c_i
+                                        break
+                                chosen_cand_label = st.selectbox(f"Selecione {pos}:", options=cand_labels, index=current_cand_idx, key=f"sel_bench_{pos}")
+                                if st.button(f"Confirmar Reserva", key=f"btn_apply_bench_{pos}", use_container_width=True):
+                                    cand_selected_row = cand_list.iloc[cand_labels.index(chosen_cand_label)].copy()
+                                    worst_starter_xp = starter_pos_players['Media_Ajustada'].min() if not starter_pos_players.empty else 0.0
+                                    cand_selected_row['Worst_Starter_XP'] = worst_starter_xp
+                                    cand_selected_row['Expected_Gain'] = round(max(0.0, (cand_selected_row.get('Upside', cand_selected_row.get('Media_Ajustada', 0.0)) - worst_starter_xp) * 0.4), 2)
+                                    if "custom_reserves" not in st.session_state:
+                                        st.session_state["custom_reserves"] = dict(reservas)
+                                    st.session_state["custom_reserves"][pos] = cand_selected_row
+                                    st.session_state["custom_mode_owner"] = app_mode
+                                    st.success(f"{cand_selected_row['Nome']} definido como reserva de {pos}!")
+                                    st.rerun()
+
                 super_r = reservas.get(super_sub_pos_chosen, list(reservas.values())[0])
                 st.success(f"⭐ **Reserva de Luxo Ativo:** **{super_r['Nome']} ({super_r['Posicao']} - {super_r['Clube']})** | Teto: **{super_r.get('Upside', 0):.2f} pts**!")
 
                 st.markdown("")
-                tab_btn1, tab_btn2 = st.columns(2)
+                tab_btn1, tab_btn2, tab_btn3 = st.columns(3)
                 with tab_btn1:
                     if st.button(f"💾 SALVAR NO APP (RODADA {rodada_num})", use_container_width=True, key="btn_save_tab_cards"):
                         save_official_team(
@@ -1535,7 +1767,18 @@ def main():
                                 reserves_dict=reservas,
                                 super_sub_id=super_sub_id
                             )
-                            handle_globo_escalacao_result(success, resp_globo, rodada_num, selected_df, capitao_row, reservas)
+                            handle_globo_escalacao_result(success, resp_globo, rodada_num, selected_df, capitao_row, reservas, super_sub_pos=super_sub_pos_chosen)
+                with tab_btn3:
+                    if st.button("📥 PUXAR DA GLOBO", use_container_width=True, key="btn_sync_tab_cards", help="Sincroniza as alterações que você fez no app oficial do Cartola FC"):
+                        with st.spinner("📥 Sincronizando com a sua conta oficial do Cartola..."):
+                            token_to_use = active_token or (st.secrets.get("cartola_token", "") if hasattr(st, "secrets") else "")
+                            sync_ok, sync_msg = sync_team_from_globo(api, token_to_use, rodada_num, mercado_data, partidas_data, scorer)
+                            if sync_ok:
+                                st.success(f"✅ {sync_msg}")
+                                time.sleep(1.2)
+                                st.rerun()
+                            else:
+                                st.error(f"❌ {sync_msg}")
 
 
         with tab_live:
