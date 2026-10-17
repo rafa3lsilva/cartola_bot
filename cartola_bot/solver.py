@@ -12,12 +12,16 @@ class TeamOptimizer:
         self.captain_upside_weight = self.weights.get('captain_upside_weight', 0.50)
         self.top_scorer_weight = self.weights.get('top_scorer_weight', 0.35)
         self.max_defenders_per_club = config.get('defaults', {}).get('max_defenders_per_club', 2)
+        self.avoid_conflict_default = config.get('defaults', {}).get('avoid_attack_vs_defense_conflict', True)
 
-    def optimize(self, df, budget, formation_name, max_players_per_club=None):
+    def optimize(self, df, budget, formation_name, max_players_per_club=None, avoid_attack_vs_defense_conflict=None):
         """Usa Programação Linear Inteira Mista (MILP) para encontrar o time ideal com Capitão integrado e foco em alto teto (upside)."""
         reqs = self.formations.get(formation_name)
         if not reqs:
             raise ValueError(f"Formação '{formation_name}' não suportada.")
+
+        if avoid_attack_vs_defense_conflict is None:
+            avoid_attack_vs_defense_conflict = self.avoid_conflict_default
 
         ids = df['ID'].tolist()
         precos = dict(zip(ids, df['Preco']))
@@ -26,6 +30,20 @@ class TeamOptimizer:
         clubes = dict(zip(ids, df['Clube']))
         upsides = dict(zip(ids, df['Upside'])) if 'Upside' in df.columns else medias
         goals_pg = dict(zip(ids, df['Goals_Per_Game'])) if 'Goals_Per_Game' in df.columns else {}
+        
+        # Mapeamento de adversários para cada clube a partir de Opp_Abrev ou Confronto
+        opp_by_club = {}
+        for _, row in df.iterrows():
+            c = row.get('Clube')
+            if c and c not in opp_by_club:
+                opp = row.get('Opp_Abrev')
+                if not opp or pd.isna(opp):
+                    conf = str(row.get('Confronto', ''))
+                    parts = conf.split()
+                    if len(parts) >= 2:
+                        opp = parts[1]
+                if opp and not pd.isna(opp) and opp != 'ADV':
+                    opp_by_club[c] = str(opp).strip()
         
         # Calcular scores efetivos combinando média esperada + peso de teto por posição e faro de gol
         effective_scores = {}
@@ -90,14 +108,33 @@ class TeamOptimizer:
                 prob += pulp.lpSum([player_vars[i] for i in ids if clubes[i] == club]) <= max_players_per_club, f"Max_Clube_{club}"
 
         # 6.1. Restrição de limite de defensores por clube (evita ruína de SG quádruplo)
+        def_positions = {'Goleiro', 'Lateral', 'Zagueiro'}
         if self.max_defenders_per_club and self.max_defenders_per_club > 0:
-            def_positions = {'Goleiro', 'Lateral', 'Zagueiro'}
             unique_clubs = set(clubes.values())
             for club in unique_clubs:
                 prob += pulp.lpSum([
                     player_vars[i] for i in ids 
                     if clubes[i] == club and posicoes[i] in def_positions
                 ]) <= self.max_defenders_per_club, f"Max_Defensores_Clube_{club}"
+
+        # 6.2. Restrição Anti-Conflito: Evita Ataque/Meia contra Defesa Adversária (Protege SG)
+        if avoid_attack_vs_defense_conflict and opp_by_club:
+            atk_mid_positions = {'Meia', 'Atacante'}
+            # Para cada par ordenado (Clube A defensor vs Clube B atacante) onde Clube B é o adversário de Clube A:
+            for c_def, c_atk in opp_by_club.items():
+                def_ids = [i for i in ids if clubes[i] == c_def and posicoes[i] in def_positions]
+                atk_ids = [i for i in ids if clubes[i] == c_atk and posicoes[i] in atk_mid_positions]
+                
+                if def_ids and atk_ids:
+                    # Variável binária: 1 se escalar algum defensor do c_def; 0 caso contrário
+                    y_def = pulp.LpVariable(f"HasDef_{c_def}_vs_{c_atk}", cat="Binary")
+                    # Se y_def == 1 -> pode escalar defensores de c_def (até o limite) e 0 atacantes/meias de c_atk
+                    # Se y_def == 0 -> 0 defensores de c_def e pode escalar atacantes/meias de c_atk
+                    max_def_count = min(len(def_ids), reqs.get('Goleiro', 1) + reqs.get('Lateral', 2) + reqs.get('Zagueiro', 3))
+                    max_atk_count = min(len(atk_ids), reqs.get('Meia', 3) + reqs.get('Atacante', 3))
+                    
+                    prob += pulp.lpSum([player_vars[i] for i in def_ids]) <= max_def_count * y_def, f"ConflictDef_{c_def}_vs_{c_atk}"
+                    prob += pulp.lpSum([player_vars[i] for i in atk_ids]) <= max_atk_count * (1 - y_def), f"ConflictAtk_{c_atk}_vs_{c_def}"
                 
         # 7. Resolver Modelo
         prob.solve(pulp.PULP_CBC_CMD(msg=0))
@@ -114,7 +151,7 @@ class TeamOptimizer:
         
         return result_df
 
-    def optimize_best_formation(self, df, budget, max_players_per_club=None):
+    def optimize_best_formation(self, df, budget, max_players_per_club=None, avoid_attack_vs_defense_conflict=None):
         """Avalia todas as formações cadastradas e retorna a melhor escalação global."""
         best_formation = None
         best_df = None
@@ -122,7 +159,11 @@ class TeamOptimizer:
         all_results = {}
         
         for formation_name in self.formations.keys():
-            res_df = self.optimize(df, budget, formation_name, max_players_per_club)
+            res_df = self.optimize(
+                df, budget, formation_name, 
+                max_players_per_club=max_players_per_club,
+                avoid_attack_vs_defense_conflict=avoid_attack_vs_defense_conflict
+            )
             if res_df is not None:
                 # Calcular pontuação total (soma + bônus de 50% oficial do capitão)
                 cap_bonus = res_df[res_df['Is_Capitao']]['Media_Ajustada'].sum() * 0.5
@@ -205,11 +246,33 @@ class TeamOptimizer:
         trocar_count = 0
         total_gain_potential = 0.0
 
+        # Mapeamento de defensores escalados por clube
+        def_positions = {'Goleiro', 'Lateral', 'Zagueiro'}
+        atk_positions = {'Meia', 'Atacante'}
+        def_clubs_escalados = set(selected_df[selected_df['Posicao'].isin(def_positions)]['Clube'].unique())
+        
+        # Mapeamento de adversários para cada clube
+        opp_by_club = {}
+        for _, row in df.iterrows():
+            c = row.get('Clube')
+            if c and c not in opp_by_club:
+                opp = row.get('Opp_Abrev')
+                if not opp or pd.isna(opp):
+                    conf = str(row.get('Confronto', ''))
+                    parts = conf.split()
+                    if len(parts) >= 2:
+                        opp = parts[1]
+                if opp and not pd.isna(opp) and opp != 'ADV':
+                    opp_by_club[c] = str(opp).strip()
+
+        conflict_warnings = []
+
         for _, p in selected_df.iterrows():
             p_id = p['ID']
             pos = p['Posicao']
             preco = float(p['Preco'])
             xp = float(p['Media_Ajustada'])
+            clube = p['Clube']
             is_cap = (p_id == captain_id)
             xp_final = xp * 1.4 if is_cap else xp
             
@@ -217,6 +280,21 @@ class TeamOptimizer:
             tag_color = p.get('Tag_Color', '#f59e0b')
             status_cons = p.get('Status_Consultoria', 'MANTER')
             just = p.get('Justificativa', 'Atleta escalado pelo usuário.')
+            
+            # Detecção de conflito: Atacante/Meia enfrentando a defesa que você próprio escalou
+            has_sg_conflict = False
+            opp_club = opp_by_club.get(clube)
+            if pos in atk_positions and opp_club and opp_club in def_clubs_escalados:
+                has_sg_conflict = True
+                def_rivals = selected_df[(selected_df['Clube'] == opp_club) & (selected_df['Posicao'].isin(def_positions))]['Nome'].tolist()
+                def_str = ", ".join(def_rivals)
+                conflict_msg = f"⚔️ **Conflito de SG:** Enfrenta a sua defesa ({opp_club}: {def_str})."
+                just = f"{conflict_msg} {just}"
+                conflict_warnings.append(f"{p['Nome']} ({clube}) vs {def_str} ({opp_club})")
+                if status_cons == 'MANTER':
+                    status_cons = 'ATENCAO'
+                    tag = 'Atenção (Conflito SG)'
+                    tag_color = '#f59e0b'
             
             if status_cons == 'MANTER':
                 manter_count += 1
@@ -275,14 +353,19 @@ class TeamOptimizer:
                 'Status_Consultoria': status_cons,
                 'Justificativa': just,
                 'Is_Capitao': is_cap,
+                'Has_SG_Conflict': has_sg_conflict,
                 'Sugestao_Troca': sugestao
             })
 
         # Veredito Geral da Escalação
-        if trocar_count == 0 and atencao_count <= 2 and total_xp >= 92.0:
+        if conflict_warnings:
+            rating = "⚔️ Escalação com Conflito de SG"
+            rating_color = "#f59e0b"
+            rating_desc = f"Atenção: Você tem atletas ofensivos enfrentando sua própria defesa ({'; '.join(conflict_warnings)}). Gols marcados anularão o SG da sua zaga."
+        elif trocar_count == 0 and atencao_count <= 2 and total_xp >= 92.0:
             rating = "🔥 Escalação de Elite (Muito Forte)"
             rating_color = "#10b981"
-            rating_desc = "Seu time está muito bem balanceado, explorando os melhores mandantes e defesas com alta probabilidade de SG."
+            rating_desc = "Seu time está muito bem balanceado, sem canibalização de SG e explorando os melhores mandantes com alto teto."
         elif trocar_count <= 2:
             rating = "⚖️ Escalação Competitiva"
             rating_color = "#f59e0b"
@@ -302,6 +385,7 @@ class TeamOptimizer:
             'manter_count': manter_count,
             'atencao_count': atencao_count,
             'trocar_count': trocar_count,
+            'conflict_warnings': conflict_warnings,
             'rating': rating,
             'rating_color': rating_color,
             'rating_desc': rating_desc,

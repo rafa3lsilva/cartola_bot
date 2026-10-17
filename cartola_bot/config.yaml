@@ -72,6 +72,7 @@ defaults:
   auto_formation: true
   max_players_per_club: 5
   max_defenders_per_club: 2 # Limite de no máximo 2 defensores do mesmo clube (evita ruína de SG)
+  avoid_attack_vs_defense_conflict: true # Evita escalar ataque/meia contra a defesa do mesmo confronto (protege SG)
   min_games: 2
   min_games_threshold: 3 # Só filtra min_games se o máximo de jogos no DF for maior que isso
 

@@ -973,10 +973,17 @@ def main():
                 value=5,
                 help="Limite de segurança para evitar dependência excessiva de uma única equipe."
             )
+            
+            avoid_conflict = st.checkbox(
+                "🛡️ Evitar Ataque vs Defesa (Proteção SG)",
+                value=config_preview.get('defaults', {}).get('avoid_attack_vs_defense_conflict', True),
+                help="Impede a escalação de atacantes ou meias contra os defensores escalados no mesmo confronto, eliminando canibalização de SG."
+            )
         else:
             budget = float(official_data.get('total_cost', patrimonio_real))
             formation_option = "4-3-3"
             max_per_club = 5
+            avoid_conflict = True
 
         # Conexão com a API
         st.html('<div class="sidebar-section">🔄 ATUALIZAÇÃO DA API</div>')
@@ -1091,12 +1098,14 @@ def main():
                 st.info(f"🏆 **Rodada {rodada_num} do Brasileirão** analisada no modo Simulador!")
                 if formation_option == "auto":
                     chosen_formation, selected_df, best_score, all_formations_summary = optimizer.optimize_best_formation(
-                        df, budget=budget, max_players_per_club=max_per_club
+                        df, budget=budget, max_players_per_club=max_per_club,
+                        avoid_attack_vs_defense_conflict=avoid_conflict
                     )
                 else:
                     chosen_formation = formation_option
                     selected_df = optimizer.optimize(
-                        df, budget=budget, formation_name=chosen_formation, max_players_per_club=max_per_club
+                        df, budget=budget, formation_name=chosen_formation, max_players_per_club=max_per_club,
+                        avoid_attack_vs_defense_conflict=avoid_conflict
                     )
 
                 if selected_df is None or selected_df.empty:
