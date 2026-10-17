@@ -13,15 +13,16 @@ class TeamOptimizer:
         self.top_scorer_weight = self.weights.get('top_scorer_weight', 0.35)
         self.max_defenders_per_club = config.get('defaults', {}).get('max_defenders_per_club', 2)
         self.avoid_conflict_default = config.get('defaults', {}).get('avoid_attack_vs_defense_conflict', True)
+        self.avoid_attack_vs_defense_conflict = self.avoid_conflict_default
 
-    def optimize(self, df, budget, formation_name, max_players_per_club=None, avoid_attack_vs_defense_conflict=None):
+    def optimize(self, df, budget, formation_name, max_players_per_club=None, avoid_attack_vs_defense_conflict=None, **kwargs):
         """Usa Programação Linear Inteira Mista (MILP) para encontrar o time ideal com Capitão integrado e foco em alto teto (upside)."""
         reqs = self.formations.get(formation_name)
         if not reqs:
             raise ValueError(f"Formação '{formation_name}' não suportada.")
 
         if avoid_attack_vs_defense_conflict is None:
-            avoid_attack_vs_defense_conflict = self.avoid_conflict_default
+            avoid_attack_vs_defense_conflict = getattr(self, 'avoid_attack_vs_defense_conflict', self.avoid_conflict_default)
 
         ids = df['ID'].tolist()
         precos = dict(zip(ids, df['Preco']))
@@ -151,7 +152,7 @@ class TeamOptimizer:
         
         return result_df
 
-    def optimize_best_formation(self, df, budget, max_players_per_club=None, avoid_attack_vs_defense_conflict=None):
+    def optimize_best_formation(self, df, budget, max_players_per_club=None, avoid_attack_vs_defense_conflict=None, **kwargs):
         """Avalia todas as formações cadastradas e retorna a melhor escalação global."""
         best_formation = None
         best_df = None
@@ -162,7 +163,8 @@ class TeamOptimizer:
             res_df = self.optimize(
                 df, budget, formation_name, 
                 max_players_per_club=max_players_per_club,
-                avoid_attack_vs_defense_conflict=avoid_attack_vs_defense_conflict
+                avoid_attack_vs_defense_conflict=avoid_attack_vs_defense_conflict,
+                **kwargs
             )
             if res_df is not None:
                 # Calcular pontuação total (soma + bônus de 50% oficial do capitão)

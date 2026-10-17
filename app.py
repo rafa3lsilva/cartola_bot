@@ -1095,18 +1095,28 @@ def main():
                             r_series['Expected_Gain'] = round(max(0.0, (r_series.get('Upside', r_series.get('Media_Ajustada', 0)) - worst_starter_xp) * 0.4), 2)
                             reservas[pos] = r_series
             else:
-                st.info(f"🏆 **Rodada {rodada_num} do Brasileirão** analisada no modo Simulador!")
+                optimizer.avoid_attack_vs_defense_conflict = avoid_conflict
                 if formation_option == "auto":
-                    chosen_formation, selected_df, best_score, all_formations_summary = optimizer.optimize_best_formation(
-                        df, budget=budget, max_players_per_club=max_per_club,
-                        avoid_attack_vs_defense_conflict=avoid_conflict
-                    )
+                    try:
+                        chosen_formation, selected_df, best_score, all_formations_summary = optimizer.optimize_best_formation(
+                            df, budget=budget, max_players_per_club=max_per_club,
+                            avoid_attack_vs_defense_conflict=avoid_conflict
+                        )
+                    except TypeError:
+                        chosen_formation, selected_df, best_score, all_formations_summary = optimizer.optimize_best_formation(
+                            df, budget=budget, max_players_per_club=max_per_club
+                        )
                 else:
                     chosen_formation = formation_option
-                    selected_df = optimizer.optimize(
-                        df, budget=budget, formation_name=chosen_formation, max_players_per_club=max_per_club,
-                        avoid_attack_vs_defense_conflict=avoid_conflict
-                    )
+                    try:
+                        selected_df = optimizer.optimize(
+                            df, budget=budget, formation_name=chosen_formation, max_players_per_club=max_per_club,
+                            avoid_attack_vs_defense_conflict=avoid_conflict
+                        )
+                    except TypeError:
+                        selected_df = optimizer.optimize(
+                            df, budget=budget, formation_name=chosen_formation, max_players_per_club=max_per_club
+                        )
 
                 if selected_df is None or selected_df.empty:
                     st.error("Não foi possível montar um time completo com esse orçamento. Tente aumentar o valor em cartoletas.")
