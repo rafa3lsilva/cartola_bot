@@ -773,6 +773,15 @@ def handle_globo_escalacao_result(success, resp_globo, rodada_num, selected_df, 
         if "Expired" in str(resp_globo) or "não autorizado" in str(resp_globo) or "401" in str(resp_globo):
             st.error("❌ **Token da Globo Expirado:** A Globo invalida os tokens de autenticação a cada 60 minutos.")
             st.info("💡 **Como renovar em 10 segundos:**\n1. No navegador, acesse o Cartola e aperte **F12** -> aba **Rede**\n2. Copie o valor do cabeçalho **`Authorization`** (`Bearer eyJ...`)\n3. Cole no menu lateral em **'🔑 Renovar Token Globo'** e clique em **Atualizar Token**!")
+        elif "cofre" in str(resp_globo).lower():
+            team_cost = selected_df['Preco'].sum() if ('Preco' in selected_df.columns) else 0.0
+            st.error("💰 **Saldo Insuficiente no Cartola (Cofre):**")
+            st.warning(
+                f"O Cartola FC recusou a escalação porque o custo total do time (**C$ {team_cost:.2f}**) ultrapassa o saldo de cartoletas disponível no seu cofre na conta oficial da Globo.\n\n"
+                "👉 **Como resolver em 2 passos rápidos:**\n"
+                "1. No menu lateral, acerte o campo **💰 Orçamento / Cofre (C$)** com o valor exato (ou um pouco abaixo) do seu patrimônio/saldo real no Cartola.\n"
+                "2. Clique em **🚀 OTIMIZAR NOVO TIME** (ou substitua atletas caros) e tente clicar em **🚀 Escalar na Globo** novamente!"
+            )
         else:
             st.error(f"❌ Erro ao enviar para o Cartola: {resp_globo}")
 
@@ -931,6 +940,15 @@ def sync_team_from_globo(api, token, rodada_num, mercado_data, partidas_data, sc
     if "custom_super_sub_pos" in st.session_state:
         del st.session_state["custom_super_sub_pos"]
 
+    # Atualizar dados de patrimônio e saldo no estado da sessão
+    glb_pat = user_glb_team.get('patrimonio') or user_glb_team.get('time', {}).get('patrimonio') or user_glb_team.get('patrimonio_num')
+    if glb_pat is not None:
+        try:
+            if "cartola_session" in st.session_state and st.session_state["cartola_session"]:
+                st.session_state["cartola_session"]["patrimonio"] = float(glb_pat)
+        except Exception:
+            pass
+
     return True, f"Time da Rodada {actual_round} sincronizado com sucesso da Globo ({len(starters_df)} titulares e {len(reserves_dict)} reservas)!"
 
 def render_login_screen():
@@ -1044,15 +1062,22 @@ def main():
             team_name_disp = session_data.get("team_name", "M1TOS EC")
             patrimonio_real = float(session_data.get("patrimonio", 141.66))
             active_token = session_data.get("token", active_token)
-        elif active_token:
+            
+        if active_token:
             try:
                 temp_api = CartolaAPI(load_config())
                 user_glb_team = temp_api.get_user_team(active_token)
                 if user_glb_team:
-                    if user_glb_team.get('patrimonio'):
-                        patrimonio_real = float(user_glb_team['patrimonio'])
-                    if user_glb_team.get('nome'):
-                        team_name_disp = user_glb_team['nome']
+                    glb_pat = user_glb_team.get('patrimonio') or user_glb_team.get('time', {}).get('patrimonio') or user_glb_team.get('patrimonio_num')
+                    if glb_pat is not None:
+                        patrimonio_real = float(glb_pat)
+                        if session_data:
+                            session_data["patrimonio"] = patrimonio_real
+                    glb_nome = user_glb_team.get('time', {}).get('nome') or user_glb_team.get('nome')
+                    if glb_nome:
+                        team_name_disp = glb_nome
+                        if session_data:
+                            session_data["team_name"] = team_name_disp
             except Exception:
                 pass
 
@@ -1117,6 +1142,14 @@ def main():
         if app_mode == "simulador":
             # Seção 2: Estratégia Tática
             st.html('<div class="sidebar-section">📋 ESTRATÉGIA TÁTICA</div>')
+            budget = st.number_input(
+                "💰 Orçamento / Cofre (C$):",
+                min_value=40.0,
+                max_value=500.0,
+                value=round(float(patrimonio_real), 2),
+                step=1.0,
+                help="Valor máximo em cartoletas para montar o time. O Cartola FC rejeitará escalações que custem mais que o saldo disponível no seu cofre."
+            )
             config_preview = load_config()
             available_formations = ["auto"] + list(config_preview.get('formations', {}).keys())
             formation_option = st.selectbox(
@@ -1380,9 +1413,15 @@ def main():
         with c2:
             st.html(f'<div class="metric-card"><div class="metric-title">💎 Custo dos Titulares</div><div class="metric-value">C$ {total_cost:.2f}</div></div>')
         with c3:
-            st.html(f'<div class="metric-card"><div class="metric-title">🏦 Sobra no Caixa</div><div class="metric-value">C$ {budget_left:.2f}</div></div>')
+            if budget_left < 0:
+                st.html(f'<div class="metric-card" style="border:1px solid #ef4444;"><div class="metric-title" style="color:#ef4444;">⚠️ Saldo Estourado</div><div class="metric-value" style="color:#ef4444;">C$ {budget_left:.2f}</div></div>')
+            else:
+                st.html(f'<div class="metric-card"><div class="metric-title">🏦 Sobra no Caixa</div><div class="metric-value">C$ {budget_left:.2f}</div></div>')
         with c4:
             st.html(f'<div class="metric-card"><div class="metric-title">📋 Formação Tática</div><div class="metric-value">{chosen_formation}</div></div>')
+
+        if active_token and total_cost > patrimonio_real:
+            st.warning(f"⚠️ **Atenção ao Cofre:** O custo dos titulares (**C$ {total_cost:.2f}**) ultrapassa o patrimônio da sua conta Globo (**C$ {patrimonio_real:.2f}**). Ajuste o **Orçamento (C$)** na barra lateral e reotimize para que a compra seja aceita pelo Cartola FC.")
 
         # Banner de Ação Principal (Escalar no Cartola / Salvar)
         st.markdown("")
