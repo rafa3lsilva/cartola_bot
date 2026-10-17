@@ -480,7 +480,8 @@ def render_market_player_card(p):
     confronto = p.get('Confronto', '')
     tag = p.get('Tag', 'Boa Opção')
     tag_color = p.get('Tag_Color', '#f59e0b')
-    just = p.get('Justificativa', '')
+    raw_just = p.get('Justificativa', '')
+    just = "" if pd.isna(raw_just) or str(raw_just).lower() == 'nan' else str(raw_just)
     sg_prob = p.get('SG_Prob', None)
     foto = p.get('Foto', '') or "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/generica.png"
     escudo = p.get('Escudo', '')
@@ -1273,18 +1274,34 @@ def main():
             super_sub_badge_txt = f" | ⭐ Reserva de Luxo: **{super_sub_name} ({super_sub_pos_chosen})**" if super_sub_name else ""
             st.markdown(f"🛡️ **Time M1TOS EC • Rodada {rodada_num}** | Projeção: **{total_xp:.2f} pts** | Custo: **C$ {total_cost:.2f}** | Capitão: **👑 {capitao_nome}**{super_sub_badge_txt}")
         with banner_c2:
-            if st.button("🚀 ESCALAR NO CARTOLA GLOBO", type="primary", use_container_width=True, key="btn_main_autoscale_banner"):
-                with st.spinner("Enviando escalação diretamente para a Globo..."):
-                    token_to_use = active_token or (st.secrets.get("cartola_token", "") if hasattr(st, "secrets") else "")
-                    success, resp_globo = api.save_time_to_globo(
-                        token=token_to_use,
-                        esquema_name=chosen_formation,
+            act_b1, act_b2 = st.columns(2)
+            with act_b1:
+                if st.button("💾 Salvar Como Oficial", use_container_width=True, key="btn_main_save_banner"):
+                    save_official_team(
+                        rodada=rodada_num,
+                        starters_df=selected_df,
                         captain_id=int(capitao_row['ID']),
-                        starters_ids=selected_df['ID'].tolist(),
                         reserves_dict=reservas,
-                        super_sub_id=super_sub_id
+                        super_sub_pos=super_sub_pos_chosen or "Atacante"
                     )
-                    handle_globo_escalacao_result(success, resp_globo, rodada_num, selected_df, capitao_row, reservas)
+                    st.success(f"✅ Time da Rodada {rodada_num} salvo como Oficial!")
+                    st.rerun()
+            with act_b2:
+                if st.button("🚀 Escalar na Globo", type="primary", use_container_width=True, key="btn_main_autoscale_banner"):
+                    with st.spinner("Enviando escalação diretamente para a Globo..."):
+                        token_to_use = active_token or (st.secrets.get("cartola_token", "") if hasattr(st, "secrets") else "")
+                        if not token_to_use:
+                            st.warning("⚠️ Você precisa conectar sua conta Globo no menu lateral para enviar diretamente para a API.")
+                        else:
+                            success, resp_globo = api.save_time_to_globo(
+                                token=token_to_use,
+                                esquema_name=chosen_formation,
+                                captain_id=int(capitao_row['ID']),
+                                starters_ids=selected_df['ID'].tolist(),
+                                reserves_dict=reservas,
+                                super_sub_id=super_sub_id
+                            )
+                            handle_globo_escalacao_result(success, resp_globo, rodada_num, selected_df, capitao_row, reservas)
 
         # 2. Alternador de Visualização Expandido
         tab_market, tab_consult, tab_cards, tab_live, tab_table, tab_comp = st.tabs([
@@ -1346,8 +1363,9 @@ def main():
 
             st.write(f"Exibindo **{len(m_df)}** atletas encontrados:")
 
-            # Renderizar Grid do Mercado (4 por linha)
+            # Renderizar Grid do Mercado (4 por linha) com Ações Diretas
             grid_cols_num = 4
+            selected_ids_set = set(selected_df['ID'].tolist())
             m_list = m_df.to_dict('records')
             for i in range(0, len(m_list), grid_cols_num):
                 row_athletes = m_list[i:i+grid_cols_num]
@@ -1355,6 +1373,36 @@ def main():
                 for idx, ath in enumerate(row_athletes):
                     with cols[idx]:
                         render_market_player_card(ath)
+                        ath_id = ath.get('ID')
+                        ath_pos = ath.get('Posicao')
+                        ath_name = ath.get('Nome')
+                        
+                        if ath_id in selected_ids_set:
+                            st.html('<div style="text-align:center; padding:4px 0; font-size:0.80rem; font-weight:700; color:#10b981;">✅ Já Escalado</div>')
+                        else:
+                            # Titulares na mesma posição disponíveis para serem substituídos
+                            pos_starters = selected_df[selected_df['Posicao'] == ath_pos]
+                            if not pos_starters.empty:
+                                starter_names = pos_starters['Nome'].tolist()
+                                with st.popover(f"➕ Escalar ({ath_pos[:3].upper()})", use_container_width=True):
+                                    st.write(f"**Escalar {ath_name}** no lugar de:")
+                                    target_starter = st.selectbox(
+                                        "Substituir quem?",
+                                        options=starter_names,
+                                        key=f"market_sub_target_{ath_id}_{i}"
+                                    )
+                                    if st.button("Confirmar Substituição", key=f"btn_confirm_market_sub_{ath_id}_{i}", type="primary", use_container_width=True):
+                                        out_p = selected_df[selected_df['Nome'] == target_starter].iloc[0]
+                                        new_row = pd.Series(ath).copy()
+                                        new_row['Is_Capitao'] = bool(out_p.get('Is_Capitao', False))
+                                        new_df = selected_df[selected_df['Nome'] != target_starter].copy()
+                                        new_df = pd.concat([new_df, pd.DataFrame([new_row])], ignore_index=True)
+                                        st.session_state["custom_starters_df"] = new_df
+                                        st.session_state["custom_mode_owner"] = app_mode
+                                        st.success(f"✅ {target_starter} substituído por {ath_name}!")
+                                        st.rerun()
+                            else:
+                                st.caption("Posição não usada nesta formação")
 
         with tab_consult:
             # 🔍 CONSULTOR TÁTICO & DIAGNÓSTICO ATLETA POR ATLETA
@@ -1395,6 +1443,20 @@ def main():
                     target_col = c_left if idx % 2 == 0 else c_right
                     with target_col:
                         render_consult_player_card(s)
+                        sug = s.get('Sugestao_Troca')
+                        if sug:
+                            if st.button(f"🔄 Aplicar Troca: Entra {sug['Nome']}", key=f"btn_apply_sug_{s['ID']}_{idx}", use_container_width=True):
+                                target_out = s['Nome']
+                                cand_row = df[df['ID'] == sug['ID']]
+                                if not cand_row.empty:
+                                    new_row = cand_row.iloc[0].copy()
+                                    new_row['Is_Capitao'] = bool(s.get('Is_Capitao', False))
+                                    new_df = selected_df[selected_df['Nome'] != target_out].copy()
+                                    new_df = pd.concat([new_df, pd.DataFrame([new_row])], ignore_index=True)
+                                    st.session_state["custom_starters_df"] = new_df
+                                    st.session_state["custom_mode_owner"] = app_mode
+                                    st.success(f"✅ {target_out} substituído por {sug['Nome']}!")
+                                    st.rerun()
 
                 # Ações Finais da Consultoria
                 st.markdown("---")

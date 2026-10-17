@@ -260,6 +260,7 @@ class Scorer:
                 'Tag': tag,
                 'Tag_Color': tag_color,
                 'Status_Consultoria': status_cons,
+                'Justificativa': justificativa,
             }
             
             processed.append(player_data)
