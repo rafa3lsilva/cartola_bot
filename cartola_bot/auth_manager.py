@@ -110,14 +110,42 @@ class AuthManager:
     def load_active_session():
         """
         Carrega a sessão ativa prioritariamente de:
-        1. Google Sheets (nuvem)
-        2. Arquivo local .session_cache.json
+        1. st.secrets (Streamlit Secrets: cartola_token ou [globo])
+        2. Google Sheets (nuvem)
+        3. Arquivo local .session_cache.json
         """
-        from cartola_bot.gsheets_manager import load_auth_session
-        session_data = load_auth_session()
-        if session_data and session_data.get("token"):
-            return session_data
+        # 1. Checar Streamlit Secrets (modo headless / automático)
+        try:
+            import streamlit as st
+            if hasattr(st, "secrets"):
+                # Caso a: token direto nos secrets
+                secret_token = st.secrets.get("cartola_token", "")
+                if secret_token:
+                    clean_token = secret_token.strip()
+                    auth_header = f"Bearer {clean_token}" if not clean_token.startswith("Bearer ") else clean_token
+                    valid, team_info = AuthManager.validate_token(auth_header)
+                    if valid:
+                        return {
+                            "email": "secrets@cartola.pro",
+                            "token": auth_header,
+                            "glbid": clean_token.replace("Bearer ", ""),
+                            "authenticated_at": datetime.now().isoformat(),
+                            "team_name": team_info.get("nome", "M1TOS EC") if team_info else "M1TOS EC",
+                            "patrimonio": float(team_info.get("patrimonio", 136.94)) if team_info else 136.94
+                        }
+        except Exception:
+            pass
 
+        # 2. Google Sheets
+        try:
+            from cartola_bot.gsheets_manager import load_auth_session
+            session_data = load_auth_session()
+            if session_data and session_data.get("token"):
+                return session_data
+        except Exception:
+            pass
+
+        # 3. Cache local
         if os.path.exists(SESSION_FILE):
             try:
                 with open(SESSION_FILE, "r", encoding="utf-8") as f:
