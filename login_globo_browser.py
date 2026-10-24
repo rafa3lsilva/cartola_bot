@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Script de Login Interativo da Globo via Navegador (1 Clique)
-============================================================
-Abre uma janela real do Google Chrome na página oficial da Globo (login.globo.com).
-Você faz o login normalmente com e-mail, senha e resolve qualquer Captcha/2FA.
-Assim que o login é concluído, o script captura o cookie GLBID / Token automaticamente,
-salva no .session_cache.json e sincroniza com o Google Sheets / Streamlit!
+Capturador Automático de Sessão do Cartola FC
+=============================================
+Abre o Cartola FC (ge.globo.com/cartola) no Chrome.
+Você clica em 'Entrar', digita sua conta Globo e resolve o Captcha.
+Assim que o seu time carregar, o script intercepta o Bearer Token oficial do Cartola,
+salva no .session_cache.json e sincroniza com o Streamlit!
 """
 
 import sys
@@ -33,22 +33,20 @@ def find_system_chrome():
     return None
 
 def login_with_browser():
-    try:
-        from playwright.sync_api import sync_playwright
-    except ImportError:
-        print("❌ Playwright não encontrado. Instalando no ambiente virtual...")
-        os.system(".venv/bin/pip install playwright")
-        from playwright.sync_api import sync_playwright
+    from playwright.sync_api import sync_playwright
 
     chrome_path = find_system_chrome()
 
     print("\n" + "="*65)
-    print("⚽ M1TOS EC • LOGIN OFICIAL DA GLOBO VIA NAVEGADOR")
+    print("⚽ M1TOS EC • LOGIN OFICIAL DO CARTOLA FC NO NAVEGADOR")
     print("="*65)
-    print("🚀 Abrindo janela do navegador em https://login.globo.com ...")
-    print("👉 Faça o login normalmente com seu e-mail, senha e resolva o Captcha.")
-    print("⏳ O script detectará a conclusão do login automaticamente!")
+    print("🚀 Abrindo o Cartola FC no navegador...")
+    print("👉 Se não estiver logado, clique em 'Entrar' e faça login normalmente.")
+    print("⏳ O script interceptará o Token Bearer oficial assim que seu time carregar!")
     print("="*65 + "\n")
+
+    captured_token = None
+    user_email = "rafaelpjmp@gmail.com"
 
     with sync_playwright() as p:
         launch_args = {
@@ -65,51 +63,50 @@ def login_with_browser():
         )
         page = context.new_page()
 
-        # Abre a página de autenticação oficial e atualizada do Cartola na Globo (Service ID 6760)
-        login_target_url = "https://login.globo.com/login/6760?url=https://ge.globo.com/cartola/"
-        page.goto(login_target_url)
+        def on_request(request):
+            nonlocal captured_token
+            h = request.headers
+            for k in ['authorization', 'x-glb-token']:
+                val = h.get(k, '')
+                if val and 'Bearer ey' in val:
+                    # Token JWT oficial da API do Cartola
+                    if len(val) > 120 and 'api.cartola' in request.url or 'cartolafc' in request.url:
+                        captured_token = val
+                        print(f"🎯 TOKEN DO CARTOLA FC CAPTURADO!")
 
-        glbid_found = None
-        user_email = "rafaelpjmp@gmail.com"
+        page.on('request', on_request)
 
-        # Aguardar até o cookie GLBID aparecer nos cookies do contexto (timeout de até 4 minutos)
+        # Abre diretamente o Cartola FC
+        page.goto("https://ge.globo.com/cartola/")
+
+        # Aguardar login e captura do token por até 4 minutos
         start_time = time.time()
         timeout_seconds = 240
 
         while time.time() - start_time < timeout_seconds:
-            cookies = context.cookies()
-            for c in cookies:
-                if c.get("name") == "GLBID" and c.get("value"):
-                    glbid_found = c.get("value")
-                    break
-
-            if glbid_found:
-                # Verificar se a página concluiu a autenticação
-                current_url = page.url
-                if "login.globo.com" not in current_url:
-                    break
-
+            if captured_token:
+                break
             time.sleep(1.0)
 
-        if not glbid_found:
-            print("❌ Tempo limite esgotado ou login não concluído.")
+        if not captured_token:
+            print("❌ Tempo limite esgotado sem detectar o token do Cartola.")
             browser.close()
             return False
 
-        print(f"\n🎉 SUCESSO! Cookie de autenticação GLBID interceptado!")
-        print(f"🔑 GLBID: {glbid_found[:18]}...{glbid_found[-8:]}")
+        clean_token = captured_token if captured_token.startswith("Bearer ") else f"Bearer {captured_token}"
+        print(f"\n🎉 SUCESSO! Token oficial do Cartola autenticado!")
+        print(f"🔑 Token: {clean_token[:35]}...{clean_token[-15:]}")
 
-        auth_token = f"Bearer {glbid_found}"
         print("📡 Validando credencial com os servidores do Cartola FC...")
-        valid, team_info = AuthManager.validate_token(auth_token, glbid=glbid_found)
+        valid, team_info = AuthManager.validate_token(clean_token)
 
         team_name = team_info.get("nome", "M1TOS EC") if team_info else "M1TOS EC"
         patrimonio = float(team_info.get("patrimonio", 136.94)) if team_info else 136.94
 
         session_data = {
             "email": user_email,
-            "token": auth_token,
-            "glbid": glbid_found,
+            "token": clean_token,
+            "glbid": clean_token.replace("Bearer ", ""),
             "authenticated_at": datetime.now().isoformat(),
             "team_name": team_name,
             "nome_cartola": team_info.get("nome_cartola", "") if team_info else "",
@@ -124,10 +121,11 @@ def login_with_browser():
         print("\n" + "="*65)
         print(f"✅ Time Autenticado: {team_name}")
         print(f"💰 Patrimônio Sincronizado: C$ {patrimonio:.2f}")
-        print(f"💾 Sessão gravada com sucesso em {SESSION_FILE} e no Google Sheets!")
+        print(f"💾 Sessão salva com sucesso em {SESSION_FILE} e no Google Sheets!")
         print("="*65)
-        print("👉 Seu app Streamlit agora abrirá logado diretamente, sem pedir login nem token!\n")
+        print("👉 Pronto! Atualize a página do Streamlit que ele entrará logado automaticamente!\n")
 
+        time.sleep(2.0)
         browser.close()
         return True
 
