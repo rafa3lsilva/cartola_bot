@@ -11,15 +11,27 @@ from cartola_bot.scoring import Scorer
 from cartola_bot.solver import TeamOptimizer
 from cartola_bot.exporter import Exporter
 from cartola_bot.utils.config_loader import load_config
-from cartola_bot.gsheets_manager import (
-    load_official_team,
-    save_official_team,
-    get_saved_rounds,
-    is_gsheets_configured,
-    has_gsheets_write_permission,
-    OFFICIAL_FILE,
-    HISTORICO_DIR
-)
+try:
+    from cartola_bot.gsheets_manager import (
+        load_official_team,
+        save_official_team,
+        get_saved_rounds,
+        is_gsheets_configured,
+        has_gsheets_write_permission,
+        OFFICIAL_FILE,
+        HISTORICO_DIR
+    )
+except ImportError:
+    from cartola_bot.gsheets_manager import (
+        load_official_team,
+        save_official_team,
+        get_saved_rounds,
+        is_gsheets_configured,
+        OFFICIAL_FILE,
+        HISTORICO_DIR
+    )
+    def has_gsheets_write_permission():
+        return False
 
 
 # Configuração da página para máxima responsividade
