@@ -995,79 +995,81 @@ def sync_team_from_globo(api, token, rodada_num, mercado_data, partidas_data, sc
 
 def render_login_screen():
     st.html('''
-    <div style="max-width: 540px; margin: 30px auto 10px auto; padding: 32px 28px; background: linear-gradient(145deg, rgba(15,23,42,0.95), rgba(30,41,59,0.95)); border: 1px solid rgba(56,189,248,0.3); border-radius: 20px; box-shadow: 0 20px 40px rgba(0,0,0,0.6); text-align: center;">
+    <div style="max-width: 600px; margin: 30px auto 10px auto; padding: 32px 28px; background: linear-gradient(145deg, rgba(15,23,42,0.95), rgba(30,41,59,0.95)); border: 1px solid rgba(56,189,248,0.3); border-radius: 20px; box-shadow: 0 20px 40px rgba(0,0,0,0.6); text-align: center;">
         <div style="font-size: 3.5rem; margin-bottom: 8px;">🛡️⚽</div>
         <h1 style="font-size: 1.8rem; font-weight: 800; color: #f8fafc; margin: 0; background: linear-gradient(90deg, #38bdf8, #818cf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">M1TOS EC • Cartola Pro</h1>
-        <p style="color: #94a3b8; font-size: 0.95rem; margin-top: 6px; margin-bottom: 20px;">Conecte sua conta Globo para escalação automática em 1 clique e gestão tática inteligente.</p>
+        <p style="color: #94a3b8; font-size: 0.95rem; margin-top: 6px; margin-bottom: 20px;">Conecte seu token de autenticação oficial para escalação automática em 1 clique e gestão tática inteligente.</p>
     </div>
     ''')
     
-    col_l, col_center, col_r = st.columns([1, 2.2, 1])
+    col_l, col_center, col_r = st.columns([1, 2.4, 1])
     with col_center:
         with st.container():
-            st.markdown("### 🔐 Acesso à Conta Globo")
-            email_input = st.text_input("📧 E-mail Globo:", placeholder="seu_email@globo.com", key="gateway_email_input")
-            password_input = st.text_input("🔒 Senha da Conta Globo:", type="password", placeholder="••••••••", key="gateway_pass_input")
-            remember_session = st.checkbox("💾 Salvar sessão na nuvem (Google Sheets)", value=True, help="Mantém você conectado entre diferentes visitas e dispositivos sem precisar redigitar sua senha.")
+            st.markdown("### 🔑 Conexão via Token do Cartola FC")
             
-            if st.button("⚽ ENTRAR NA CONTA GLOBO", type="primary", use_container_width=True, key="gateway_btn_login"):
-                if not email_input.strip() or not password_input.strip():
-                    st.warning("⚠️ Preencha seu e-mail e senha para continuar.")
+            token_input = st.text_area(
+                "Cole seu Bearer Token do Cartola FC:",
+                placeholder="Exemplo: Bearer eyJhbGciOiJSUzI1NiIs...",
+                height=110,
+                key="gateway_token_input",
+                help="Cole o token Bearer ou JWT oficial da sua conta do Cartola FC."
+            )
+            remember_session = st.checkbox(
+                "💾 Salvar sessão de forma persistente (Google Sheets)",
+                value=True,
+                help="Mantém você conectado automaticamente nas próximas visitas sem precisar colar o token de novo."
+            )
+            
+            if st.button("🚀 CONECTAR MEU TIME", type="primary", use_container_width=True, key="gateway_btn_do_token"):
+                clean_tok = token_input.strip()
+                if not clean_tok:
+                    st.warning("⚠️ Cole o seu Bearer Token no campo acima para continuar.")
                 else:
-                    with st.spinner("Conectando aos servidores da Globo e obtendo dados do Cartola..."):
-                        success, res = AuthManager.login_with_credentials(email_input, password_input)
-                        if success:
-                            AuthManager.save_session(res, save_to_cloud=remember_session)
-                            st.session_state["cartola_session"] = res
-                            st.session_state["cartola_token"] = res["token"]
+                    auth_header = clean_tok if clean_tok.startswith("Bearer ") else f"Bearer {clean_tok}"
+                    with st.spinner("Validando token com a API do Cartola FC..."):
+                        valid, team_info = AuthManager.validate_token(auth_header)
+                        if valid:
+                            team_name = team_info.get("nome", "M1TOS EC") if team_info else "M1TOS EC"
+                            patrimonio = float(team_info.get("patrimonio", 136.94)) if team_info else 136.94
+                            sess = {
+                                "email": "usuario@cartola.pro",
+                                "token": auth_header,
+                                "glbid": auth_header.replace("Bearer ", ""),
+                                "authenticated_at": datetime.now().isoformat(),
+                                "team_name": team_name,
+                                "nome_cartola": team_info.get("nome_cartola", "") if team_info else "",
+                                "patrimonio": patrimonio,
+                                "foto_perfil": team_info.get("foto_perfil", "") if team_info else "",
+                                "url_escudo_svg": team_info.get("url_escudo_svg", "") if team_info else ""
+                            }
+                            AuthManager.save_session(sess, save_to_cloud=remember_session)
+                            st.session_state["cartola_session"] = sess
+                            st.session_state["cartola_token"] = auth_header
                             st.session_state["guest_mode"] = False
                             st.session_state["logged_out"] = False
                             st.balloons()
-                            st.success(f"🎉 **Login realizado com sucesso!** Bem-vindo, **{res.get('team_name', 'M1TOS EC')}**!")
-                            time.sleep(1.8)
+                            st.success(f"🎉 **Time Conectado com Sucesso!** Bem-vindo, **{team_name}** (C$ {patrimonio:.2f})!")
+                            time.sleep(1.2)
                             st.rerun()
                         else:
-                            st.error(f"❌ {res}")
-            
-            st.markdown("")
-            with st.expander("🔑 Opções Avançadas / Entrar com Token ou Navegador (Sem Captcha)"):
+                            st.error("❌ Token inválido ou expirado. Verifique se copiou o token completo que começa com 'Bearer eyJ...' ou 'eyJ...'")
+
+            # Tutorial Passo a Passo Detalhado
+            with st.expander("📖 Tutorial Rápido: Como pegar o seu Token em 20 segundos", expanded=True):
                 st.markdown("""
-                **🚀 Login com Navegador (Recomendado):**
-                Para resolver o Captcha diretamente na página oficial da Globo e salvar sua sessão automaticamente na nuvem:
-                ```bash
-                .venv/bin/python login_globo_browser.py
-                ```
-                *Uma janela do Chrome abrirá para você digitar seu login e senha normalmente. O cookie GLBID é capturado na hora e salvo para sempre!*
+                1. No seu computador, abra o site do Cartola: **[ge.globo.com/cartola](https://ge.globo.com/cartola/)**
+                2. Verifique se o seu time já está aberto e logado na tela.
+                3. Pressione a tecla **`F12`** no teclado *(ou clique com o botão direito e escolha "Inspecionar")*.
+                4. Clique na aba **Rede** *(ou **Network**)* na janela que abrir.
+                5. No campo de filtro (lupa), digite: **`time`**
+                6. Pressione **`F5`** para atualizar a página.
+                7. Clique na requisição chamada **`info`** ou **`time`** que aparecer na lista.
+                8. Na aba **Headers** *(ou Cabeçalhos)* à direita, role até **Request Headers** *(Cabeçalhos da Solicitação)*.
+                9. Copie o valor inteiro da linha **`Authorization:`** *(começa com `Bearer ey...`)* e cole aqui acima!
                 """)
-                st.markdown("---")
-                st.caption("Ou cole seu Token Bearer / Cookie GLBID diretamente abaixo:")
-                token_or_glbid = st.text_input("Token Bearer ou Cookie GLBID:", type="password", key="gateway_manual_token_input")
-                if st.button("Conectar com Token", use_container_width=True, key="gateway_btn_do_token"):
-                    if token_or_glbid.strip():
-                        with st.spinner("Validando token com a API do Cartola..."):
-                            valid, team_info = AuthManager.validate_token(token_or_glbid.strip())
-                            if valid:
-                                sess = {
-                                    "email": email_input.strip() or "usuario@globo.com",
-                                    "token": token_or_glbid.strip(),
-                                    "glbid": token_or_glbid.strip(),
-                                    "authenticated_at": datetime.now().isoformat(),
-                                    "team_name": team_info.get("nome", "M1TOS EC") if team_info else "M1TOS EC",
-                                    "patrimonio": float(team_info.get("patrimonio", 141.66)) if team_info else 141.66
-                                }
-                                AuthManager.save_session(sess, save_to_cloud=remember_session)
-                                st.session_state["cartola_session"] = sess
-                                st.session_state["cartola_token"] = sess["token"]
-                                st.session_state["guest_mode"] = False
-                                st.session_state["logged_out"] = False
-                                st.success(f"🎉 Conectado ao time **{sess['team_name']}**!")
-                                time.sleep(1.2)
-                                st.rerun()
-                            else:
-                                st.error("❌ Token ou cookie inválido ou expirado.")
 
             st.markdown("---")
-            if st.button("👀 Continuar como Visitante (Modo Consulta)", use_container_width=True, key="gateway_btn_guest"):
+            if st.button("👀 Continuar como Visitante (Modo Apenas Consulta)", use_container_width=True, key="gateway_btn_guest"):
                 st.session_state["guest_mode"] = True
                 st.session_state["logged_out"] = False
                 st.rerun()
@@ -1176,14 +1178,36 @@ def main():
                 st.session_state["logged_out"] = False
                 st.rerun()
 
-        with st.sidebar.expander("🔑 Renovar Token Globo (Sessão)", expanded=False):
-            st.caption("Se desejar atualizar o token manualmente nesta sessão:")
-            token_in = st.text_input("Novo Bearer Token:", type="password", key="sidebar_token_renewal_input")
-            if st.button("🔄 Atualizar Token", use_container_width=True, key="btn_apply_token"):
-                if token_in.strip():
-                    st.session_state["cartola_token"] = token_in.strip()
-                    st.success("Token atualizado!")
-                    st.rerun()
+        with st.sidebar.expander("🔑 Renovar Token da Globo", expanded=False):
+            st.caption("Atualize ou troque seu token sem precisar sair da conta:")
+            token_in = st.text_area("Novo Bearer Token:", height=90, key="sidebar_token_renewal_input", placeholder="Bearer eyJ...")
+            if st.button("🔄 Validar e Salvar Novo Token", use_container_width=True, key="btn_apply_token"):
+                clean_in = token_in.strip()
+                if not clean_in:
+                    st.warning("⚠️ Cole o token antes de atualizar.")
+                else:
+                    auth_in = clean_in if clean_in.startswith("Bearer ") else f"Bearer {clean_in}"
+                    valid_t, team_t = AuthManager.validate_token(auth_in)
+                    if valid_t:
+                        new_team_name = team_t.get("nome", team_name_disp) if team_t else team_name_disp
+                        new_patrimonio = float(team_t.get("patrimonio", patrimonio_real)) if team_t else patrimonio_real
+                        sess_update = {
+                            "email": session_data.get("email", "usuario@cartola.pro") if session_data else "usuario@cartola.pro",
+                            "token": auth_in,
+                            "glbid": auth_in.replace("Bearer ", ""),
+                            "authenticated_at": datetime.now().isoformat(),
+                            "team_name": new_team_name,
+                            "patrimonio": new_patrimonio
+                        }
+                        AuthManager.save_session(sess_update, save_to_cloud=True)
+                        st.session_state["cartola_session"] = sess_update
+                        st.session_state["cartola_token"] = auth_in
+                        st.session_state["logged_out"] = False
+                        st.success(f"✅ Token renovado com sucesso para **{new_team_name}**!")
+                        time.sleep(1.2)
+                        st.rerun()
+                    else:
+                        st.error("❌ Token inválido ou expirado. Tente novamente.")
 
         # Seção 1: Modo de Operação com Rodada Dinâmica e Histórico
         st.html('<div class="sidebar-section">📌 MODO DE OPERAÇÃO</div>')
