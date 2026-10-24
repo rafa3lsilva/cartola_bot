@@ -1081,6 +1081,19 @@ def main():
             except Exception:
                 pass
 
+        if patrimonio_real == 141.66:
+            try:
+                temp_api = CartolaAPI(load_config())
+                pub_team = temp_api.get_public_team(142227)
+                if pub_team and 'patrimonio' in pub_team:
+                    patrimonio_real = float(pub_team['patrimonio'])
+                    if session_data:
+                        session_data["patrimonio"] = patrimonio_real
+                if pub_team and 'time' in pub_team and 'nome' in pub_team['time']:
+                    team_name_disp = pub_team['time']['nome']
+            except Exception:
+                pass
+
         # Card do Perfil do Time
         status_color = "#38bdf8" if active_token else "#f59e0b"
         status_text = "🟢 CONECTADO À GLOBO" if active_token else "🟡 MODO CONSULTA"
@@ -1185,7 +1198,11 @@ def main():
         
         if app_mode == "simulador":
             st.markdown("")
-            run_button = st.button("🚀 OTIMIZAR NOVO TIME", type="primary", use_container_width=True)
+            if st.button("🚀 OTIMIZAR NOVO TIME", type="primary", use_container_width=True, key="btn_run_optimizer"):
+                for k in ["custom_starters_df", "custom_reserves", "custom_super_sub_pos", "select_captain_change"]:
+                    if k in st.session_state:
+                        del st.session_state[k]
+                st.rerun()
 
         
         # Placeholder para o botão de exportação na Sidebar
@@ -1355,7 +1372,7 @@ def main():
                 current_cap = selected_df[selected_df['Is_Capitao']]['Nome'].values[0] if 'Is_Capitao' in selected_df.columns and selected_df['Is_Capitao'].any() else selected_df.iloc[0]['Nome']
                 cap_options = selected_df['Nome'].tolist()
                 cap_idx = cap_options.index(current_cap) if current_cap in cap_options else 0
-                new_cap_name = st.selectbox("👑 Capitão (1.5x Pontos):", options=cap_options, index=cap_idx, key="select_captain_change")
+                new_cap_name = st.selectbox("👑 Capitão (1.5x Pontos):", options=cap_options, index=cap_idx)
                 if new_cap_name != current_cap:
                     updated_df = selected_df.copy()
                     updated_df['Is_Capitao'] = (updated_df['Nome'] == new_cap_name)
@@ -1372,7 +1389,7 @@ def main():
                     if super_sub_pos_chosen not in sub_res_keys:
                         super_sub_pos_chosen = "Atacante" if "Atacante" in sub_res_keys else (sub_res_keys[0] if sub_res_keys else "Meia")
                     curr_res_idx = sub_res_keys.index(super_sub_pos_chosen) if super_sub_pos_chosen in sub_res_keys else 0
-                    chosen_res_label = st.selectbox("⭐ Reserva de Luxo (Banco):", options=sub_res_names, index=curr_res_idx, key="select_super_sub_change")
+                    chosen_res_label = st.selectbox("⭐ Reserva de Luxo (Banco):", options=sub_res_names, index=curr_res_idx)
                     chosen_idx = sub_res_names.index(chosen_res_label)
                     chosen_pos = sub_res_keys[chosen_idx]
                     if chosen_pos != super_sub_pos_chosen:
@@ -1384,12 +1401,9 @@ def main():
                 st.write("")
                 if "custom_starters_df" in st.session_state or "custom_super_sub_pos" in st.session_state or "custom_reserves" in st.session_state:
                     if st.button("⏪ Resetar Modificações", use_container_width=True, key="btn_reset_custom_team"):
-                        if "custom_starters_df" in st.session_state:
-                            del st.session_state["custom_starters_df"]
-                        if "custom_super_sub_pos" in st.session_state:
-                            del st.session_state["custom_super_sub_pos"]
-                        if "custom_reserves" in st.session_state:
-                            del st.session_state["custom_reserves"]
+                        for k in ["custom_starters_df", "custom_reserves", "custom_super_sub_pos", "select_captain_change"]:
+                            if k in st.session_state:
+                                del st.session_state[k]
                         st.rerun()
 
         # Determinar super_sub ativo
