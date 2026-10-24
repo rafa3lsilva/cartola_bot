@@ -132,7 +132,7 @@ class Exporter:
             
         for _, p in selected_df.iterrows():
             is_capitao = p['Nome'] == capitao_nome
-            xp_final = round(p['Media_Ajustada'] * 1.4, 2) if is_capitao else p['Media_Ajustada']
+            xp_final = round(p['Media_Ajustada'] * 1.5, 2) if is_capitao else p['Media_Ajustada']
             export_list.append({
                 'Status': 'Titular',
                 'Posicao': p['Posicao'],

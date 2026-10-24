@@ -63,12 +63,26 @@ formations:
     Lateral: 2
     Zagueiro: 3
     Meia: 3
+    Atacante: 2
+    Técnico: 1
+  "4-5-1":
+    Goleiro: 1
+    Lateral: 2
+    Zagueiro: 2
+    Meia: 5
+    Atacante: 1
+    Técnico: 1
+  "5-4-1":
+    Goleiro: 1
+    Lateral: 2
+    Zagueiro: 3
+    Meia: 4
     Atacante: 1
     Técnico: 1
 
 defaults:
-  budget: 141.66
-  formation: "auto"
+  budget: 136.94
+  formation: "4-3-3"
   auto_formation: true
   max_players_per_club: 5
   max_defenders_per_club: 2 # Limite de no máximo 2 defensores do mesmo clube (evita ruína de SG)

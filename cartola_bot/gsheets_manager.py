@@ -18,6 +18,20 @@ def is_gsheets_configured():
         pass
     return False
 
+def has_gsheets_write_permission():
+    """Verifica se há credenciais completas de Service Account para escrita no Google Sheets."""
+    try:
+        import streamlit as st
+        if hasattr(st, "secrets"):
+            if "gcp_service_account" in st.secrets:
+                return True
+            gs_cfg = st.secrets.get("connections", {}).get("gsheets", {})
+            if "service_account" in str(gs_cfg) or "private_key" in str(gs_cfg):
+                return True
+    except Exception:
+        pass
+    return False
+
 def get_gsheets_connection():
     """Retorna a conexão GSheetsConnection do Streamlit."""
     try:
@@ -218,7 +232,8 @@ def save_official_team(rodada, starters_df, captain_id, reserves_dict, super_sub
                 except Exception:
                     conn.update(worksheet="historico_rodadas", data=df_ativo)
         except Exception as e:
-            print(f"[Aviso] Erro ao sincronizar com Google Sheets: {e}")
+            if "Public Spreadsheet cannot be written to" not in str(e):
+                print(f"[Aviso] Erro ao sincronizar com Google Sheets: {e}")
 
     return data
 

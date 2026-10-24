@@ -238,6 +238,10 @@ class Scorer:
                 goals_per_game=goals_per_game
             )
 
+            status_id = a.get('status_id')
+            status_map = {7: 'Provável', 2: 'Dúvida', 3: 'Suspenso', 5: 'Contundido', 6: 'Nulo'}
+            status_nome = status_map.get(status_id, 'Desconhecido')
+
             player_data = {
                 'ID': a.get('atleta_id'),
                 'Nome': a.get('apelido', 'Sem Nome'),
@@ -260,6 +264,8 @@ class Scorer:
                 'Confronto': confronto_str,
                 'Is_Home': is_home,
                 'Opp_Abrev': opp_abrev,
+                'Status_ID': status_id,
+                'Status_Nome': status_nome,
                 'Tag': tag,
                 'Tag_Color': tag_color,
                 'Status_Consultoria': status_cons,

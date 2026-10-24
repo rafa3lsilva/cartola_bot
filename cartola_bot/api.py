@@ -1,7 +1,10 @@
 import requests
 import json
 import os
+import logging
 from datetime import datetime, timedelta
+
+logger = logging.getLogger(__name__)
 
 class CartolaAPI:
     """Classe para lidar com as requisições à API do Cartola FC."""

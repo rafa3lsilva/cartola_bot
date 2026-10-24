@@ -41,7 +41,9 @@ class TeamOptimizer:
                 if not opp or pd.isna(opp):
                     conf = str(row.get('Confronto', ''))
                     parts = conf.split()
-                    if len(parts) >= 2:
+                    if len(parts) >= 3 and parts[1].lower() in ['x', '@']:
+                        opp = parts[2]
+                    elif len(parts) >= 2:
                         opp = parts[1]
                 if opp and not pd.isna(opp) and opp != 'ADV':
                     opp_by_club[c] = str(opp).strip()
@@ -143,8 +145,8 @@ class TeamOptimizer:
         if pulp.LpStatus[prob.status] != 'Optimal':
             return None
             
-        selected_ids = [i for i in ids if player_vars[i].varValue == 1]
-        captain_ids = [i for i in ids if captain_vars[i].varValue == 1]
+        selected_ids = [i for i in ids if player_vars[i].varValue is not None and player_vars[i].varValue > 0.5]
+        captain_ids = [i for i in ids if captain_vars[i].varValue is not None and captain_vars[i].varValue > 0.5]
         captain_id = captain_ids[0] if captain_ids else None
         
         result_df = df[df['ID'].isin(selected_ids)].copy()
@@ -153,13 +155,15 @@ class TeamOptimizer:
         return result_df
 
     def optimize_best_formation(self, df, budget, max_players_per_club=None, avoid_attack_vs_defense_conflict=None, **kwargs):
-        """Avalia todas as formações cadastradas e retorna a melhor escalação global."""
+        """Avalia todas as formações cadastradas e retorna a melhor escalação global, priorizando 4-3-3."""
         best_formation = None
         best_df = None
         best_score = -1.0
         all_results = {}
         
-        for formation_name in self.formations.keys():
+        # Testar formações, avaliando 4-3-3 e comparando com alternativas
+        formation_order = ['4-3-3'] + [f for f in self.formations.keys() if f != '4-3-3']
+        for formation_name in formation_order:
             res_df = self.optimize(
                 df, budget, formation_name, 
                 max_players_per_club=max_players_per_club,
@@ -177,7 +181,12 @@ class TeamOptimizer:
                     'cost': round(res_df['Preco'].sum(), 2)
                 }
                 
-                if total_score > best_score:
+                # Se for 4-3-3, assume como base. Outra formação só substitui se trouxer ganho real relevante (>= 0.5 pts)
+                if best_df is None:
+                    best_score = total_score
+                    best_df = res_df
+                    best_formation = formation_name
+                elif formation_name != '4-3-3' and total_score > (best_score + 0.50):
                     best_score = total_score
                     best_df = res_df
                     best_formation = formation_name

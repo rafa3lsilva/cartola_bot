@@ -16,6 +16,7 @@ from cartola_bot.gsheets_manager import (
     save_official_team,
     get_saved_rounds,
     is_gsheets_configured,
+    has_gsheets_write_permission,
     OFFICIAL_FILE,
     HISTORICO_DIR
 )
@@ -605,7 +606,7 @@ def render_player_card(p, is_captain=False, is_super_sub=False, sub_gain=None):
     clube = p.get('Clube', '')
     preco = p.get('Preco', 0.0)
     media = p.get('Media', 0.0)
-    xp_val = p.get('Media_Ajustada', 0.0) * (1.4 if is_captain else 1.0)
+    xp_val = p.get('Media_Ajustada', 0.0) * (1.5 if is_captain else 1.0)
     sg_prob = p.get('SG_Prob', None)
     foto = p.get('Foto', '') or "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/generica.png"
     escudo = p.get('Escudo', '')
@@ -755,6 +756,35 @@ def render_live_player_card(p, pinfo=None, is_captain=False, is_super_sub=False)
         f'</div>'
     )
     st.html(html)
+
+def validate_lineup_rules(selected_df, reservas):
+    """Valida as regras oficiais do Cartola FC para titulares e banco de reservas."""
+    errors = []
+    if selected_df is None or selected_df.empty:
+        return False, ["Nenhum atleta titular selecionado."]
+    
+    if len(selected_df) < 12:
+        errors.append(f"O time titular possui apenas {len(selected_df)} de 12 atletas necessários.")
+
+    # 1. Checagem de reservas
+    if reservas:
+        for r_pos, r_obj in reservas.items():
+            if not hasattr(r_obj, 'get'):
+                continue
+            s_sub = selected_df[selected_df['Posicao'] == r_pos]
+            if s_sub.empty:
+                errors.append(f"A posição **{r_pos}** não é utilizada nesta formação tática, portanto não pode conter reserva.")
+                continue
+            min_p = float(s_sub['Preco'].min())
+            r_p = float(r_obj.get('Preco', 999.0))
+            if r_p > min_p:
+                errors.append(f"O reserva **{r_obj.get('Nome')}** ({r_pos} - C$ {r_p:.2f}) custa mais que o titular mais barato da posição (C$ {min_p:.2f}). Regra oficial da Globo: o reserva deve custar no máximo o valor do titular mais barato.")
+            status_id = r_obj.get('Status_ID')
+            if status_id is not None and int(status_id) != 7:
+                st_nome = r_obj.get('Status_Nome', 'Não Provável')
+                errors.append(f"O reserva **{r_obj.get('Nome')}** ({r_pos}) possui status **'{st_nome}'**. Apenas atletas com status **'Provável'** são permitidos.")
+                
+    return len(errors) == 0, errors
 
 def handle_globo_escalacao_result(success, resp_globo, rodada_num, selected_df, capitao_row, reservas, super_sub_pos="Atacante"):
     if success:
@@ -1186,6 +1216,15 @@ def main():
                 value=config_preview.get('defaults', {}).get('avoid_attack_vs_defense_conflict', True),
                 help="Impede a escalação de atacantes ou meias contra os defensores escalados no mesmo confronto, eliminando canibalização de SG."
             )
+            
+            # Reset automático de modificações manuais caso mude de tática ou orçamento
+            last_b = st.session_state.get("last_tactical_budget")
+            last_f = st.session_state.get("last_tactical_formation")
+            if (last_b is not None and abs(last_b - budget) > 0.01) or (last_f is not None and last_f != formation_option):
+                for k in ["custom_starters_df", "custom_reserves", "custom_super_sub_pos", "select_captain_change"]:
+                    st.session_state.pop(k, None)
+            st.session_state["last_tactical_budget"] = budget
+            st.session_state["last_tactical_formation"] = formation_option
         else:
             budget = float(official_data.get('total_cost', patrimonio_real))
             formation_option = "4-3-3"
@@ -1211,7 +1250,10 @@ def main():
         # Seção de Sincronização em Nuvem & Backup
         st.html('<div class="sidebar-section">☁️ SINCRONIZAÇÃO EM NUVEM</div>')
         if is_gsheets_configured():
-            st.success("🟢 Google Sheets Conectado", icon="☁️")
+            if has_gsheets_write_permission():
+                st.success("🟢 Google Sheets Conectado (CRUD)", icon="☁️")
+            else:
+                st.info("🟡 Google Sheets Conectado (Leitura)", icon="☁️")
         else:
             st.info("🟡 Armazenamento Local Ativo", icon="💾")
             with st.expander("ℹ️ Como ligar Google Sheets"):
@@ -1458,20 +1500,25 @@ def main():
                     st.rerun()
             with act_b2:
                 if st.button("🚀 Escalar na Globo", type="primary", use_container_width=True, key="btn_main_autoscale_banner"):
-                    with st.spinner("Enviando escalação diretamente para a Globo..."):
-                        token_to_use = active_token or (st.secrets.get("cartola_token", "") if hasattr(st, "secrets") else "")
-                        if not token_to_use:
-                            st.warning("⚠️ Você precisa conectar sua conta Globo no menu lateral para enviar diretamente para a API.")
-                        else:
-                            success, resp_globo = api.save_time_to_globo(
-                                token=token_to_use,
-                                esquema_name=chosen_formation,
-                                captain_id=int(capitao_row['ID']),
-                                starters_ids=selected_df['ID'].tolist(),
-                                reserves_dict=reservas,
-                                super_sub_id=super_sub_id
-                            )
-                            handle_globo_escalacao_result(success, resp_globo, rodada_num, selected_df, capitao_row, reservas, super_sub_pos=super_sub_pos_chosen)
+                    valid_lineup, val_errors = validate_lineup_rules(selected_df, reservas)
+                    if not valid_lineup:
+                        for err in val_errors:
+                            st.error(f"❌ {err}")
+                    else:
+                        with st.spinner("Enviando escalação diretamente para a Globo..."):
+                            token_to_use = active_token or (st.secrets.get("cartola_token", "") if hasattr(st, "secrets") else "")
+                            if not token_to_use:
+                                st.warning("⚠️ Você precisa conectar sua conta Globo no menu lateral para enviar diretamente para a API.")
+                            else:
+                                success, resp_globo = api.save_time_to_globo(
+                                    token=token_to_use,
+                                    esquema_name=chosen_formation,
+                                    captain_id=int(capitao_row['ID']),
+                                    starters_ids=selected_df['ID'].tolist(),
+                                    reserves_dict=reservas,
+                                    super_sub_id=super_sub_id
+                                )
+                                handle_globo_escalacao_result(success, resp_globo, rodada_num, selected_df, capitao_row, reservas, super_sub_pos=super_sub_pos_chosen)
             with act_b3:
                 if st.button("📥 Puxar da Globo", use_container_width=True, key="btn_main_sync_banner", help="Importa as alterações e escalação salvas no app do Cartola FC"):
                     with st.spinner("📥 Sincronizando time direto da sua conta Globo..."):
@@ -1666,16 +1713,21 @@ def main():
                             st.rerun()
                     with btn_c2:
                         if st.button(f"🚀 ESCALAR NO CARTOLA GLOBO", type="primary", use_container_width=True, key="btn_globo_autoscale"):
-                            with st.spinner("Enviando escalação diretamente para os servidores da Globo..."):
-                                success, resp_globo = api.save_time_to_globo(
-                                    token=token_active,
-                                    esquema_name=chosen_formation,
-                                    captain_id=int(capitao_row['ID']),
-                                    starters_ids=selected_df['ID'].tolist(),
-                                    reserves_dict=reservas,
-                                    super_sub_id=super_sub_id
-                                )
-                                handle_globo_escalacao_result(success, resp_globo, rodada_num, selected_df, capitao_row, reservas, super_sub_pos=super_sub_pos_chosen)
+                            valid_lineup, val_errors = validate_lineup_rules(selected_df, reservas)
+                            if not valid_lineup:
+                                for err in val_errors:
+                                    st.error(f"❌ {err}")
+                            else:
+                                with st.spinner("Enviando escalação diretamente para os servidores da Globo..."):
+                                    success, resp_globo = api.save_time_to_globo(
+                                        token=token_active,
+                                        esquema_name=chosen_formation,
+                                        captain_id=int(capitao_row['ID']),
+                                        starters_ids=selected_df['ID'].tolist(),
+                                        reserves_dict=reservas,
+                                        super_sub_id=super_sub_id
+                                    )
+                                    handle_globo_escalacao_result(success, resp_globo, rodada_num, selected_df, capitao_row, reservas, super_sub_pos=super_sub_pos_chosen)
                     with btn_c3:
                         if st.button("📥 PUXAR DA GLOBO", use_container_width=True, key="btn_sync_advisor", help="Importa alterações feitas no app oficial do Cartola"):
                             with st.spinner("📥 Sincronizando com a sua conta do Cartola FC..."):
@@ -1759,20 +1811,36 @@ def main():
                         gain = r.get('Expected_Gain', 0) if hasattr(r, 'get') else 0
                         render_player_card(r, is_super_sub=is_super, sub_gain=gain)
 
-                        # Seletor para troca manual de reserva desta posição
+                        # Seletor para troca manual de reserva desta posição com regras estritas
                         starter_pos_players = selected_df[selected_df['Posicao'] == pos]
-                        cheapest_price = starter_pos_players['Preco'].min() if not starter_pos_players.empty else 999.0
-                        available_bench_candidates = df[
-                            (df['Posicao'] == pos) & 
-                            (~df['ID'].isin(selected_df['ID'].tolist())) & 
-                            (df['Preco'] <= cheapest_price)
-                        ].copy()
+                        if starter_pos_players.empty:
+                            st.caption("Posição não usada nesta formação")
+                            continue
+
+                        cheapest_price = round(float(starter_pos_players['Preco'].min()), 2)
+                        
+                        # Alerta caso o reserva atual viole a regra de preço após trocas de titulares
+                        curr_res_price = float(r.get('Preco', 0.0))
+                        if curr_res_price > cheapest_price:
+                            st.error(f"⚠️ **Preço Excedido:** C$ {curr_res_price:.2f} > máx C$ {cheapest_price:.2f}")
+
+                        # Filtragem rigorosa oficial da Globo:
+                        # 1. Mesma posição
+                        # 2. Não pode estar entre os titulares
+                        # 3. Preço rigorosamente menor ou igual ao titular mais barato daquela posição
+                        # 4. Apenas atletas confirmados como Provável (Status_ID == 7)
+                        cond_pos = (df['Posicao'] == pos)
+                        cond_not_starter = (~df['ID'].isin(selected_df['ID'].tolist()))
+                        cond_price = (df['Preco'] <= cheapest_price)
+                        cond_status = (df['Status_ID'] == 7) if 'Status_ID' in df.columns else True
+
+                        available_bench_candidates = df[cond_pos & cond_not_starter & cond_price & cond_status].copy()
 
                         if not available_bench_candidates.empty:
                             with st.popover(f"🔄 Trocar {pos[:3]}", use_container_width=True):
-                                st.caption(f"Opções para **{pos}** (máx. C$ {cheapest_price:.2f}):")
+                                st.caption(f"Opções **Prováveis** para {pos} (máx. C$ {cheapest_price:.2f}):")
                                 cand_list = available_bench_candidates.sort_values(by=['Upside', 'Media_Ajustada'], ascending=[False, False])
-                                cand_labels = [f"{row['Nome']} ({row['Clube']} • C$ {row['Preco']:.2f} • xP {row['Media_Ajustada']:.2f})" for _, row in cand_list.iterrows()]
+                                cand_labels = [f"{row['Nome']} ({row['Clube']} • C$ {row['Preco']:.2f} • xP {row['Media_Ajustada']:.2f} • 🟢 Provável)" for _, row in cand_list.iterrows()]
                                 current_res_id = r.get('ID') if hasattr(r, 'get') else None
                                 current_cand_idx = 0
                                 for c_i, (_, c_row) in enumerate(cand_list.iterrows()):
@@ -1782,15 +1850,20 @@ def main():
                                 chosen_cand_label = st.selectbox(f"Selecione {pos}:", options=cand_labels, index=current_cand_idx, key=f"sel_bench_{pos}")
                                 if st.button(f"Confirmar Reserva", key=f"btn_apply_bench_{pos}", use_container_width=True):
                                     cand_selected_row = cand_list.iloc[cand_labels.index(chosen_cand_label)].copy()
-                                    worst_starter_xp = starter_pos_players['Media_Ajustada'].min() if not starter_pos_players.empty else 0.0
-                                    cand_selected_row['Worst_Starter_XP'] = worst_starter_xp
-                                    cand_selected_row['Expected_Gain'] = round(max(0.0, (cand_selected_row.get('Upside', cand_selected_row.get('Media_Ajustada', 0.0)) - worst_starter_xp) * 0.4), 2)
-                                    if "custom_reserves" not in st.session_state:
-                                        st.session_state["custom_reserves"] = dict(reservas)
-                                    st.session_state["custom_reserves"][pos] = cand_selected_row
-                                    st.session_state["custom_mode_owner"] = app_mode
-                                    st.success(f"{cand_selected_row['Nome']} definido como reserva de {pos}!")
-                                    st.rerun()
+                                    if float(cand_selected_row['Preco']) > cheapest_price:
+                                        st.error(f"❌ **Regra Violada:** O atleta custa C$ {cand_selected_row['Preco']:.2f}, ultrapassando o limite de C$ {cheapest_price:.2f} (preço do titular mais barato de {pos}).")
+                                    elif cand_selected_row.get('Status_ID') and int(cand_selected_row.get('Status_ID')) != 7:
+                                        st.error(f"❌ **Status Inválido:** Apenas atletas 'Provável' são aceitos no banco de reservas.")
+                                    else:
+                                        worst_starter_xp = starter_pos_players['Media_Ajustada'].min() if not starter_pos_players.empty else 0.0
+                                        cand_selected_row['Worst_Starter_XP'] = worst_starter_xp
+                                        cand_selected_row['Expected_Gain'] = round(max(0.0, (cand_selected_row.get('Upside', cand_selected_row.get('Media_Ajustada', 0.0)) - worst_starter_xp) * 0.4), 2)
+                                        if "custom_reserves" not in st.session_state:
+                                            st.session_state["custom_reserves"] = dict(reservas)
+                                        st.session_state["custom_reserves"][pos] = cand_selected_row
+                                        st.session_state["custom_mode_owner"] = app_mode
+                                        st.success(f"✅ {cand_selected_row['Nome']} definido como reserva de {pos}!")
+                                        st.rerun()
 
                 super_r = reservas.get(super_sub_pos_chosen, list(reservas.values())[0])
                 st.success(f"⭐ **Reserva de Luxo Ativo:** **{super_r['Nome']} ({super_r['Posicao']} - {super_r['Clube']})** | Teto: **{super_r.get('Upside', 0):.2f} pts**!")
@@ -1810,17 +1883,22 @@ def main():
                         st.rerun()
                 with tab_btn2:
                     if st.button("🚀 ESCALAR NO CARTOLA GLOBO", type="primary", use_container_width=True, key="btn_globo_autoscale_cards"):
-                        with st.spinner("Enviando escalação diretamente para a Globo..."):
-                            token_to_use = active_token or (st.secrets.get("cartola_token", "") if hasattr(st, "secrets") else "")
-                            success, resp_globo = api.save_time_to_globo(
-                                token=token_to_use,
-                                esquema_name=chosen_formation,
-                                captain_id=int(capitao_row['ID']),
-                                starters_ids=selected_df['ID'].tolist(),
-                                reserves_dict=reservas,
-                                super_sub_id=super_sub_id
-                            )
-                            handle_globo_escalacao_result(success, resp_globo, rodada_num, selected_df, capitao_row, reservas, super_sub_pos=super_sub_pos_chosen)
+                        valid_lineup, val_errors = validate_lineup_rules(selected_df, reservas)
+                        if not valid_lineup:
+                            for err in val_errors:
+                                st.error(f"❌ {err}")
+                        else:
+                            with st.spinner("Enviando escalação diretamente para a Globo..."):
+                                token_to_use = active_token or (st.secrets.get("cartola_token", "") if hasattr(st, "secrets") else "")
+                                success, resp_globo = api.save_time_to_globo(
+                                    token=token_to_use,
+                                    esquema_name=chosen_formation,
+                                    captain_id=int(capitao_row['ID']),
+                                    starters_ids=selected_df['ID'].tolist(),
+                                    reserves_dict=reservas,
+                                    super_sub_id=super_sub_id
+                                )
+                                handle_globo_escalacao_result(success, resp_globo, rodada_num, selected_df, capitao_row, reservas, super_sub_pos=super_sub_pos_chosen)
                 with tab_btn3:
                     if st.button("📥 PUXAR DA GLOBO", use_container_width=True, key="btn_sync_tab_cards", help="Sincroniza as alterações que você fez no app oficial do Cartola FC"):
                         with st.spinner("📥 Sincronizando com a sua conta oficial do Cartola..."):
@@ -1897,8 +1975,12 @@ def main():
                     val_str = f"⏳ Mínimo: {min_val_p:.2f} pts"
                     scouts_str = "-"
 
-                if p['Posicao'] in pos_starter_scores and pts_bruto is not None:
-                    pos_starter_scores[p['Posicao']].append({'Nome': p['Nome'], 'pts': pts_bruto})
+                if p['Posicao'] in pos_starter_scores:
+                    pos_starter_scores[p['Posicao']].append({
+                        'Nome': p['Nome'],
+                        'pts': pts_bruto,
+                        'jogou': (pts_bruto is not None)
+                    })
 
                 nome_disp = f"👑 {p['Nome']} [C]" if is_cap else p['Nome']
                 live_rows.append({
@@ -1931,9 +2013,8 @@ def main():
                 </div>
                 ''')
 
-
-
-            # Checagem ao vivo do Reserva de Luxo (respeita a escolha oficial/salva)
+            # Checagem ao vivo do Banco de Reservas (Regra Oficial do Cartola FC)
+            # O reserva de uma posição só entra se um titular da mesma posição NÃO entrar em campo (0 minutos / não pontuou).
             best_res_pos = super_sub_pos_chosen
             if not best_res_pos and reservas:
                 max_upside = -1.0
@@ -1946,22 +2027,24 @@ def main():
             if best_res_pos and best_res_pos in reservas:
                 super_res = reservas[best_res_pos]
                 res_id_str = str(super_res.get('ID'))
-                
-                if res_id_str in pontuados:
-                    pts_res = float(pontuados[res_id_str].get('pontuacao', 0.0))
-                    titulares_pos = pos_starter_scores.get(best_res_pos, [])
-                    
-                    if titulares_pos:
-                        min_tit = min(titulares_pos, key=lambda x: x['pts'])
-                        if pts_res > min_tit['pts']:
-                            diff = pts_res - min_tit['pts']
-                            st.success(f"🎉 **TROCA AUTOMÁTICA ATIVA AO VIVO!** O Reserva de Luxo **{super_res['Nome']} ({pts_res:.2f} pts)** superou **{min_tit['Nome']} ({min_tit['pts']:.2f} pts)**! Ganho real: **+{diff:.2f} pts** no M1TOS EC!")
-                        else:
-                            st.info(f"🔄 **Reserva de Luxo:** {super_res['Nome']} fez {pts_res:.2f} pts. Para entrar, precisa superar {min_tit['Nome']} ({min_tit['pts']:.2f} pts).")
-                    else:
-                        st.info(f"🔄 **Reserva de Luxo:** {super_res['Nome']} já jogou e fez **{pts_res:.2f} pts**! Aguardando os titulares da posição jogarem.")
+                pts_res = float(pontuados[res_id_str].get('pontuacao', 0.0)) if res_id_str in pontuados else None
+                titulares_pos = pos_starter_scores.get(best_res_pos, [])
+
+                # Verificar se algum titular da posição não jogou ou se todos já atuaram
+                titulares_sem_atuar = [t for t in titulares_pos if not t['jogou']]
+                titulares_atuaram = [t for t in titulares_pos if t['jogou']]
+
+                if total_pontuados_count == 0:
+                    st.info(f"🛡️ **Banco de Reservas Oficial ({super_res['Posicao']}):** **{super_res['Nome']}** ({super_res['Clube']}). Pela regra do Cartola FC, ele entrará caso algum titular da posição não atue.")
+                elif titulares_sem_atuar and pts_res is not None:
+                    nom_sub = titulares_sem_atuar[0]['Nome']
+                    st.warning(f"🔄 **SUBSTITUIÇÃO EM POTENCIAL (Regra Oficial da Globo):** O titular **{nom_sub}** ainda não pontuou/não jogou. Se não atuar, **{super_res['Nome']} ({pts_res:.2f} pts)** entrará na pontuação oficial!")
+                elif len(titulares_atuaram) == len(titulares_pos) and len(titulares_pos) > 0:
+                    pts_info = f"({pts_res:.2f} pts)" if pts_res is not None else "(não jogou)"
+                    st.success(f"✅ **Titulares de {best_res_pos} confirmados em campo!** Todos os titulares atuaram na rodada, portanto a pontuação deles é definitiva e o reserva {super_res['Nome']} {pts_info} não é acionado (Regra Oficial da Globo).")
                 else:
-                    st.info(f"⭐ **Reserva de Luxo Oficial:** {super_res['Nome']} ({super_res['Posicao']} - {super_res['Clube']}) ainda não jogou.")
+                    status_res_txt = f"já fez **{pts_res:.2f} pts**" if pts_res is not None else "ainda não jogou"
+                    st.info(f"⏳ **Reserva ({super_res['Posicao']}):** {super_res['Nome']} {status_res_txt}. Aguardando o término dos jogos para confirmação de presença de todos os titulares.")
 
             with st.expander("📊 Ver Tabela Detalhada de Parciais e Scouts", expanded=False):
                 st.dataframe(pd.DataFrame(live_rows), use_container_width=True, hide_index=True)
@@ -2034,7 +2117,7 @@ def main():
                 for _, p in players.iterrows():
                     is_cap = p['Nome'] == capitao_nome
                     nome_display = f"👑 {p['Nome']} [CAPITÃO]" if is_cap else p['Nome']
-                    xp_val = p['Media_Ajustada'] * 1.4 if is_cap else p['Media_Ajustada']
+                    xp_val = p['Media_Ajustada'] * 1.5 if is_cap else p['Media_Ajustada']
                     media_val = f"{p['Media']:.2f}" if ('Media' in p and pd.notna(p['Media'])) else f"{p.get('Media_Ajustada', 0.0):.2f}"
                     min_val = f"C$ {p['Min_Val']:.2f}" if ('Min_Val' in p and pd.notna(p['Min_Val'])) else f"C$ {(p.get('Preco', 0.0) * 0.37):.2f}"
                     sg_val = f"{p['SG_Prob']:.0f}%" if ('SG_Prob' in p and pd.notna(p['SG_Prob']) and p['Posicao'] in ['Goleiro', 'Lateral', 'Zagueiro']) else "-"
@@ -2128,7 +2211,7 @@ def main():
         report_rows = []
         for _, p in selected_df.iterrows():
             is_cap = (p['Nome'] == capitao_nome)
-            xp_exp = p['Media_Ajustada'] * 1.4 if is_cap else p['Media_Ajustada']
+            xp_exp = p['Media_Ajustada'] * 1.5 if is_cap else p['Media_Ajustada']
             pinfo = pontuados.get(str(p.get('ID')))
             
             if pinfo is not None:
