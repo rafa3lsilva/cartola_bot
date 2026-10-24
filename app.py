@@ -1030,8 +1030,17 @@ def render_login_screen():
                             st.error(f"❌ {res}")
             
             st.markdown("")
-            with st.expander("🔑 Opções Avançadas / Entrar com Token ou Cookie GLBID"):
-                st.caption("Se sua conta possui verificação em 2 etapas (2FA) na Globo, você pode colar seu token ou cookie GLBID diretamente:")
+            with st.expander("🔑 Opções Avançadas / Entrar com Token ou Navegador (Sem Captcha)"):
+                st.markdown("""
+                **🚀 Login com Navegador (Recomendado):**
+                Para resolver o Captcha diretamente na página oficial da Globo e salvar sua sessão automaticamente na nuvem:
+                ```bash
+                .venv/bin/python login_globo_browser.py
+                ```
+                *Uma janela do Chrome abrirá para você digitar seu login e senha normalmente. O cookie GLBID é capturado na hora e salvo para sempre!*
+                """)
+                st.markdown("---")
+                st.caption("Ou cole seu Token Bearer / Cookie GLBID diretamente abaixo:")
                 token_or_glbid = st.text_input("Token Bearer ou Cookie GLBID:", type="password", key="gateway_manual_token_input")
                 if st.button("Conectar com Token", use_container_width=True, key="gateway_btn_do_token"):
                     if token_or_glbid.strip():
