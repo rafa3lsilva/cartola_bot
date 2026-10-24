@@ -65,8 +65,9 @@ def login_with_browser():
         )
         page = context.new_page()
 
-        # Abre a página de autenticação do Cartola na Globo
-        page.goto("https://login.globo.com/login/438")
+        # Abre a página de autenticação oficial e atualizada do Cartola na Globo (Service ID 6760)
+        login_target_url = "https://login.globo.com/login/6760?url=https://ge.globo.com/cartola/"
+        page.goto(login_target_url)
 
         glbid_found = None
         user_email = "rafaelpjmp@gmail.com"
