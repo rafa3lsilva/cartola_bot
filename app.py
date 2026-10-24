@@ -1343,7 +1343,7 @@ def main():
 
         capitao_row = selected_df[selected_df['Is_Capitao']].iloc[0] if 'Is_Capitao' in selected_df.columns and selected_df['Is_Capitao'].any() else selected_df.iloc[0]
         capitao_nome = capitao_row['Nome']
-        capitao_extra = capitao_row['Media_Ajustada'] * 0.4
+        capitao_extra = capitao_row['Media_Ajustada'] * 0.5
         total_xp = selected_df['Media_Ajustada'].sum() + capitao_extra
         total_cost = selected_df['Preco'].sum()
         budget_left = budget - total_cost

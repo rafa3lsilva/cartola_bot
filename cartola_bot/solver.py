@@ -239,7 +239,7 @@ class TeamOptimizer:
             captain_id = selected_df.loc[cap_idx, 'ID']
             
         cap_row = selected_df[selected_df['ID'] == captain_id].iloc[0]
-        cap_extra = float(cap_row['Media_Ajustada'] * 0.4)
+        cap_extra = float(cap_row['Media_Ajustada'] * 0.5)
         total_xp = round(float(selected_df['Media_Ajustada'].sum() + cap_extra), 2)
         
         starters_analysis = []
