@@ -131,6 +131,19 @@ class CartolaAPI:
         except Exception:
             return None
 
+    def get_public_team(self, time_id=142227, rodada=None):
+        """Busca a escalação e pontuação pública oficial de qualquer time pelo time_id (sem requerer token)."""
+        url = f"https://api.cartola.globo.com/time/id/{time_id}"
+        if rodada:
+            url += f"/{rodada}"
+        try:
+            resp = requests.get(url, headers=self.headers, timeout=6)
+            if resp.status_code == 200:
+                return resp.json()
+            return None
+        except Exception:
+            return None
+
     def save_time_to_globo(self, token, esquema_name, captain_id, starters_ids, reserves_dict=None, super_sub_id=None):
         """
         Envia a escalação completa diretamente para a conta oficial do Cartola FC.
