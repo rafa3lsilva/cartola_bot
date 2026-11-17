@@ -37,6 +37,10 @@ except ImportError:
 
 from cartola_bot.backtesting import save_round_snapshot
 from cartola_bot.lineup_service import validate_lineup_rules
+from cartola_bot.notifier import (
+    check_lineup_risks,
+    minutes_until_close,
+)
 from ui.components import (
     handle_globo_escalacao_result,
     render_login_screen,
@@ -527,6 +531,31 @@ def main():
 
         if active_token and total_cost > patrimonio_real:
             st.warning(f"⚠️ **Atenção ao Cofre:** O custo dos titulares (**C$ {total_cost:.2f}**) ultrapassa o patrimônio da sua conta Globo (**C$ {patrimonio_real:.2f}**). Ajuste o **Orçamento (C$)** na barra lateral e reotimize para que a compra seja aceita pelo Cartola FC.")
+
+        # Monitor Automático de Alterações de Última Hora (direto no Dashboard)
+        current_team_payload = {
+            "starters": selected_df.to_dict(orient="records"),
+            "reserves": {
+                pos: (dict(r) if hasattr(r, "items") else {})
+                for pos, r in (reservas or {}).items()
+            },
+        }
+        lineup_risks = check_lineup_risks(current_team_payload, mercado_data)
+        if lineup_risks:
+            mercado_status = api.get_mercado_status()
+            mins_left = minutes_until_close(mercado_status)
+            tempo_badge = f" • ⏰ Mercado fecha em **{int(mins_left)} min**" if mins_left is not None else ""
+            risk_lines = "\n".join(
+                f"- **[{r['role']}] {r['nome']}** ({r['clube']} - {r['posicao']}): `{r['status_nome']}`"
+                for r in lineup_risks
+            )
+            st.error(
+                f"🚨 **Alteração de Última Hora Detectada ({len(lineup_risks)} atleta(s) fora de 'Provável')**{tempo_badge}\n\n"
+                f"{risk_lines}"
+            )
+            if st.button("🔄 Atualizar Mercado", key="btn_refresh_market_risk"):
+                st.cache_data.clear()
+                st.rerun()
 
         # Banner de Ação Principal (Escalar no Cartola / Salvar)
         st.markdown("")

@@ -1,0 +1,13 @@
+services:
+  cartola-web:
+    build: .
+    container_name: cartola_bot_web
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./data:/app/data
+      - ./cache:/app/cache
+      - ./exports:/app/exports
+      - ./.streamlit:/app/.streamlit
+      - ./cartola_bot/config.yaml:/app/cartola_bot/config.yaml
