@@ -35,6 +35,7 @@ except ImportError:
         return False
 
 
+from cartola_bot.backtesting import save_round_snapshot
 from cartola_bot.lineup_service import validate_lineup_rules
 from ui.components import (
     handle_globo_escalacao_result,
@@ -44,6 +45,7 @@ from ui.components import (
     sync_team_from_globo_ui as sync_team_from_globo,
 )
 from ui.styles import inject_custom_css
+from ui.tabs.backtest import render_backtest_tab
 from ui.tabs.cards import render_cards_tab
 from ui.tabs.comparison import render_comparison_tab
 from ui.tabs.consult import render_consult_tab
@@ -69,6 +71,11 @@ def load_app_data(use_cache=True):
     api = CartolaAPI(config)
     mercado_data = api.get_mercado(use_cache=use_cache)
     partidas_data = api.get_partidas(use_cache=use_cache)
+    save_round_snapshot(
+        rodada=partidas_data.get("rodada"),
+        mercado_data=mercado_data,
+        partidas_data=partidas_data,
+    )
     return config, mercado_data, partidas_data
 
 
@@ -574,14 +581,14 @@ def main():
                             st.error(f"❌ {sync_msg}")
 
         # 2. Alternador de Visualização Expandido
-        tab_market, tab_consult, tab_cards, tab_live, tab_table, tab_comp = st.tabs([
-
+        tab_market, tab_consult, tab_cards, tab_live, tab_table, tab_comp, tab_backtest = st.tabs([
             "🛒 Mercado & Tags",
             "🔍 Consultor Tático",
             "🏟️ Escalação Tática (Cards)",
             "🔴 Parciais Ao Vivo",
             "📊 Tabela Detalhada",
-            "📈 Comparativo de Formações"
+            "📈 Comparativo de Formações",
+            "🧪 Backtesting & Calibração",
         ])
 
         with tab_market:
@@ -615,6 +622,9 @@ def main():
                 df, rodada_num, budget, max_per_club, chosen_formation,
                 all_formations_summary, optimizer,
             )
+
+        with tab_backtest:
+            render_backtest_tab(config)
 
         # Relatório Unificado de Desempenho da Rodada (xP Projetado x Pontuação Real)
         st.markdown("---")

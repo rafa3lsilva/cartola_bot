@@ -52,6 +52,9 @@ exports/img/*
 .session_cache.json
 *.session_cache.json
 
+# Snapshots de mercado gerados em runtime
+data/snapshots/
+
 # IDEs e Editores
 .vscode/
 .idea/

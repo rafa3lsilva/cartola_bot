@@ -1,6 +1,7 @@
 import pandas as pd
 import streamlit as st
 
+from cartola_bot.backtesting import save_round_snapshot
 from cartola_bot.lineup_service import order_defensive_line
 from ui.components import render_live_player_card
 
@@ -21,6 +22,8 @@ def render_live_tab(selected_df, reservas, capitao_nome, super_sub_pos_chosen, r
 
     pontuados = pontuados_data.get('atletas', {})
     total_pontuados_count = len(pontuados)
+    if total_pontuados_count > 0:
+        save_round_snapshot(rodada=active_round, pontuados_data=pontuados_data)
 
     if total_pontuados_count == 0:
         st.info("ℹ️ Os jogos da rodada ainda não começaram ou os scouts ao vivo ainda não foram abertos pela Globo. Assim que os jogos começarem, as parciais aparecerão aqui automaticamente!")
