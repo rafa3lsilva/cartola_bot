@@ -1,10 +1,11 @@
 import json
 import os
-import pandas as pd
 from datetime import datetime
 
-OFFICIAL_FILE = "time_oficial_ativo.json"
-HISTORICO_DIR = "historico"
+import pandas as pd
+
+OFFICIAL_FILE = "data/time_oficial_ativo.json"
+HISTORICO_DIR = "data/historico"
 
 def is_gsheets_configured():
     """Verifica se as credenciais do Google Sheets estão configuradas no Streamlit Secrets."""
@@ -39,7 +40,7 @@ def get_gsheets_connection():
         from streamlit_gsheets import GSheetsConnection
         conn = st.connection("gsheets", type=GSheetsConnection)
         return conn
-    except Exception as e:
+    except Exception:
         return None
 
 def load_official_team(rodada=None):
@@ -58,7 +59,7 @@ def load_official_team(rodada=None):
                         df_target = df_hist[df_hist["rodada"].astype(str) == str(rodada)]
                     else:
                         df_target = df_hist.sort_values(by="rodada", ascending=False).head(1)
-                        
+
                     if not df_target.empty and "snapshot_json" in df_target.columns:
                         json_str = df_target.iloc[0]["snapshot_json"]
                         return json.loads(json_str)
@@ -74,7 +75,7 @@ def load_official_team(rodada=None):
                     return json.load(f)
             except Exception:
                 pass
-                
+
     if os.path.exists(OFFICIAL_FILE):
         try:
             with open(OFFICIAL_FILE, 'r', encoding='utf-8') as f:
@@ -94,7 +95,7 @@ def load_official_team(rodada=None):
 def get_saved_rounds():
     """Retorna lista de todas as rodadas salvas (Google Sheets + JSON local)."""
     rounds = set()
-    
+
     # 1. Google Sheets
     if is_gsheets_configured():
         try:
@@ -117,7 +118,7 @@ def get_saved_rounds():
                     rounds.add(int(d['rodada']))
         except Exception:
             pass
-            
+
     for f in os.listdir(HISTORICO_DIR):
         if f.startswith("rodada_") and f.endswith(".json"):
             try:
@@ -125,7 +126,7 @@ def get_saved_rounds():
                 rounds.add(r_num)
             except Exception:
                 pass
-                
+
     return sorted(list(rounds), reverse=True)
 
 def save_official_team(rodada, starters_df, captain_id, reserves_dict, super_sub_pos="Atacante"):
@@ -134,7 +135,7 @@ def save_official_team(rodada, starters_df, captain_id, reserves_dict, super_sub
     Grava localmente (JSON) e sincroniza na planilha Google Sheets (se configurada).
     """
     os.makedirs(HISTORICO_DIR, exist_ok=True)
-    
+
     starters_list = []
     starters_names = []
     for _, row in starters_df.iterrows():
@@ -196,7 +197,7 @@ def save_official_team(rodada, starters_df, captain_id, reserves_dict, super_sub
     # 1. Salvar localmente
     with open(OFFICIAL_FILE, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
-        
+
     hist_file = os.path.join(HISTORICO_DIR, f"rodada_{rodada}.json")
     with open(hist_file, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
@@ -207,7 +208,7 @@ def save_official_team(rodada, starters_df, captain_id, reserves_dict, super_sub
             conn = get_gsheets_connection()
             if conn:
                 snapshot_json = json.dumps(data, ensure_ascii=False)
-                
+
                 row_summary = {
                     "rodada": int(rodada),
                     "salvo_em": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
@@ -218,9 +219,9 @@ def save_official_team(rodada, starters_df, captain_id, reserves_dict, super_sub
                     "titulares": ", ".join(starters_names),
                     "snapshot_json": snapshot_json
                 }
-                
+
                 df_ativo = pd.DataFrame([row_summary])
-                
+
                 try:
                     df_hist = conn.read(worksheet="historico_rodadas", ttl=0)
                     if df_hist is not None and not df_hist.empty and "rodada" in df_hist.columns:

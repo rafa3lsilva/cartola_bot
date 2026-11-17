@@ -8,9 +8,8 @@ Assim que o seu time carregar, o script intercepta o Bearer Token oficial do Car
 salva no .session_cache.json e sincroniza com o Streamlit!
 """
 
-import sys
 import os
-import json
+import sys
 import time
 from datetime import datetime
 
@@ -18,7 +17,8 @@ CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 if CURRENT_DIR not in sys.path:
     sys.path.insert(0, CURRENT_DIR)
 
-from cartola_bot.auth_manager import AuthManager, SESSION_FILE
+from cartola_bot.auth_manager import SESSION_FILE, AuthManager  # noqa: E402
+
 
 def find_system_chrome():
     candidates = [
@@ -72,7 +72,7 @@ def login_with_browser():
                     # Token JWT oficial da API do Cartola
                     if len(val) > 120 and 'api.cartola' in request.url or 'cartolafc' in request.url:
                         captured_token = val
-                        print(f"🎯 TOKEN DO CARTOLA FC CAPTURADO!")
+                        print("🎯 TOKEN DO CARTOLA FC CAPTURADO!")
 
         page.on('request', on_request)
 
@@ -94,7 +94,7 @@ def login_with_browser():
             return False
 
         clean_token = captured_token if captured_token.startswith("Bearer ") else f"Bearer {captured_token}"
-        print(f"\n🎉 SUCESSO! Token oficial do Cartola autenticado!")
+        print("\n🎉 SUCESSO! Token oficial do Cartola autenticado!")
         print(f"🔑 Token: {clean_token[:35]}...{clean_token[-15:]}")
 
         print("📡 Validando credencial com os servidores do Cartola FC...")

@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cartola-bot"
+version = "0.2.0"
+description = "M1TOS EC • Cartola FC Optimizer Pro com MILP (PuLP), modelagem de xP e dashboard Streamlit."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pandas",
+    "requests",
+    "pyyaml",
+    "pulp>=2.8.0,<4.0.0",
+    "rich",
+    "matplotlib",
+    "streamlit",
+    "st-gsheets-connection",
+    "gspread",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+exclude = [".venv", "cache", "exports", "data"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]

@@ -1,8 +1,9 @@
-import requests
 import json
-import os
 import logging
+import os
 from datetime import datetime, timedelta
+
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,7 @@ class CartolaAPI:
     def _fetch(self, url, cache_name=None, use_cache=True):
         """Busca dados da URL, usando cache se disponível e realizando fallback gracioso em caso de erro."""
         cache_path = self._get_cache_path(cache_name) if cache_name else None
-        
+
         # 1. Se cache for recente e use_cache for True, carrega direto
         if use_cache and cache_path and self._is_cache_valid(cache_path):
             try:
@@ -72,7 +73,7 @@ class CartolaAPI:
             rodada = kwargs.get('rodada')
         elif rodada is None and len(args) > 0:
             rodada = args[0]
-            
+
         # 1. Primeiro tenta buscar o endpoint ao vivo (/atletas/pontuados)
         live_data = None
         try:
@@ -104,7 +105,7 @@ class CartolaAPI:
                     return data
             except Exception:
                 pass
-                
+
             # Fallback para cache histórico
             cache_path = self._get_cache_path(cache_key)
             if os.path.exists(cache_path):
@@ -162,7 +163,7 @@ class CartolaAPI:
             "5-4-1": 7
         }
         esquema_id = esquema_map.get(esquema_name, 3)
-        
+
         pos_id_map = {
             'Goleiro': 1,
             'Lateral': 2,
@@ -170,7 +171,7 @@ class CartolaAPI:
             'Meia': 4,
             'Atacante': 5
         }
-        
+
         def _extract_id(val):
             if val is None:
                 return None
@@ -204,19 +205,19 @@ class CartolaAPI:
             "atletas": [_extract_id(i) for i in starters_ids if i is not None],
             "reservas": reservas_payload
         }
-        
+
         if super_sub_id is not None:
             sub_id_int = _extract_id(super_sub_id)
             if sub_id_int:
                 payload["reserva_luxo"] = sub_id_int
                 payload["reserva_luxo_id"] = sub_id_int
-        
+
         url = "https://api.cartola.globo.com/auth/time/salvar"
         headers = dict(self.headers)
         headers["Content-Type"] = "application/json"
         headers["X-GLB-Token"] = token
         headers["Authorization"] = f"Bearer {token}" if not token.startswith("Bearer ") else token
-        
+
         try:
             response = requests.post(url, json=payload, headers=headers, cookies={"GLBID": token}, timeout=10)
             if response.status_code in [200, 201]:

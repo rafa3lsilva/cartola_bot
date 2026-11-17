@@ -1,38 +1,55 @@
-import streamlit as st
-import pandas as pd
-import os
 import json
+import os
 import time
 from datetime import datetime
+
+import pandas as pd
+import streamlit as st
 
 from cartola_bot.api import CartolaAPI
 from cartola_bot.auth_manager import AuthManager
 from cartola_bot.scoring import Scorer
 from cartola_bot.solver import TeamOptimizer
-from cartola_bot.exporter import Exporter
 from cartola_bot.utils.config_loader import load_config
+
 try:
     from cartola_bot.gsheets_manager import (
+        HISTORICO_DIR,
+        OFFICIAL_FILE,
+        get_saved_rounds,
+        has_gsheets_write_permission,
+        is_gsheets_configured,
         load_official_team,
         save_official_team,
-        get_saved_rounds,
-        is_gsheets_configured,
-        has_gsheets_write_permission,
-        OFFICIAL_FILE,
-        HISTORICO_DIR
     )
 except ImportError:
     from cartola_bot.gsheets_manager import (
-        load_official_team,
-        save_official_team,
+        HISTORICO_DIR,
+        OFFICIAL_FILE,
         get_saved_rounds,
         is_gsheets_configured,
-        OFFICIAL_FILE,
-        HISTORICO_DIR
+        load_official_team,
+        save_official_team,
     )
     def has_gsheets_write_permission():
         return False
 
+
+from cartola_bot.lineup_service import validate_lineup_rules
+from ui.components import (
+    handle_globo_escalacao_result,
+    render_login_screen,
+)
+from ui.components import (
+    sync_team_from_globo_ui as sync_team_from_globo,
+)
+from ui.styles import inject_custom_css
+from ui.tabs.cards import render_cards_tab
+from ui.tabs.comparison import render_comparison_tab
+from ui.tabs.consult import render_consult_tab
+from ui.tabs.live import render_live_tab
+from ui.tabs.market import render_market_tab
+from ui.tabs.table import render_table_tab
 
 # Configuração da página para máxima responsividade
 st.set_page_config(
@@ -42,436 +59,8 @@ st.set_page_config(
     initial_sidebar_state="auto"
 )
 
-# Estilização CSS personalizada para visual de Cards e Campo Tático
-st.html("""
-<style>
-    .main-header {
-        font-size: 2.2rem;
-        font-weight: 800;
-        color: #38bdf8;
-        text-align: center;
-        margin-bottom: 2px;
-        text-shadow: 0 2px 10px rgba(56, 189, 248, 0.2);
-    }
-    .sub-header {
-        font-size: 0.95rem;
-        color: #94a3b8;
-        text-align: center;
-        margin-bottom: 20px;
-    }
-    .metric-card {
-        background: linear-gradient(135deg, #1e293b, #0f172a);
-        border-radius: 12px;
-        padding: 14px;
-        border: 1px solid #334155;
-        text-align: center;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-        margin-bottom: 15px;
-    }
-    .metric-title {
-        font-size: 0.80rem;
-        color: #94a3b8;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-    .metric-value {
-        font-size: 1.5rem;
-        font-weight: 700;
-        color: #38bdf8;
-    }
-    .sector-header {
-        font-size: 1.15rem;
-        font-weight: 700;
-        color: #f1f5f9;
-        margin-top: 15px;
-        margin-bottom: 10px;
-        border-left: 4px solid #38bdf8;
-        padding-left: 10px;
-    }
-    /* Estilo do Card do Jogador com altura e alinhamento padronizados */
-    .player-card {
-        background: #1e293b;
-        border: 1px solid #334155;
-        border-radius: 14px;
-        padding: 12px 8px;
-        text-align: center;
-        position: relative;
-        transition: transform 0.2s, box-shadow 0.2s;
-        margin-bottom: 12px;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-        height: 255px;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        align-items: center;
-        box-sizing: border-box;
-    }
-    .player-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 8px 18px rgba(0,0,0,0.35);
-        border-color: #475569;
-    }
-    .player-card-captain {
-        background: linear-gradient(145deg, #2a2415, #1e1b10);
-        border: 2px solid #f59e0b;
-        box-shadow: 0 0 15px rgba(245, 158, 11, 0.25);
-    }
-    .player-card-super-sub {
-        background: linear-gradient(145deg, #132e23, #0d1e17);
-        border: 2px solid #10b981;
-        box-shadow: 0 0 15px rgba(16, 185, 129, 0.25);
-    }
-    .badge-captain {
-        position: absolute;
-        top: 8px;
-        left: 8px;
-        background: #f59e0b;
-        color: #000;
-        font-size: 0.65rem;
-        font-weight: 800;
-        padding: 2px 6px;
-        border-radius: 6px;
-        text-transform: uppercase;
-        z-index: 2;
-    }
-    .badge-pos {
-        position: absolute;
-        top: 8px;
-        right: 8px;
-        background: #334155;
-        color: #94a3b8;
-        font-size: 0.65rem;
-        font-weight: 700;
-        padding: 2px 6px;
-        border-radius: 6px;
-        z-index: 2;
-    }
-    .card-top {
-        width: 100%;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-    }
-    .player-photo {
-        width: 62px;
-        height: 62px;
-        border-radius: 50%;
-        object-fit: cover;
-        margin: 6px auto 6px auto;
-        display: block;
-        background: #0f172a;
-        border: 2px solid #475569;
-    }
-    .club-crest {
-        width: 18px;
-        height: 18px;
-        vertical-align: middle;
-        margin-right: 4px;
-    }
-    .player-name {
-        font-size: 0.90rem;
-        font-weight: 700;
-        color: #f8fafc;
-        margin-bottom: 2px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        max-width: 95%;
-        height: 20px;
-        line-height: 20px;
-    }
-    .player-club {
-        font-size: 0.75rem;
-        color: #94a3b8;
-        height: 20px;
-        line-height: 20px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    .card-bottom {
-        width: 100%;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: flex-end;
-        min-height: 52px;
-    }
-    .stat-badge {
-        display: inline-block;
-        padding: 2px 6px;
-        border-radius: 6px;
-        font-size: 0.72rem;
-        font-weight: 700;
-        margin: 1px;
-    }
-    .badge-price {
-        background: #0f172a;
-        color: #fbbf24;
-        border: 1px solid #334155;
-    }
-    .badge-xp {
-        background: rgba(56, 189, 248, 0.15);
-        color: #38bdf8;
-        border: 1px solid rgba(56, 189, 248, 0.3);
-    }
-    .badge-sg {
-        background: rgba(34, 197, 94, 0.15);
-        color: #4ade80;
-        border: 1px solid rgba(34, 197, 94, 0.3);
-    }
-    .swap-gain-box {
-        font-size: 0.70rem;
-        color: #4ade80;
-        font-weight: 700;
-        height: 16px;
-        line-height: 16px;
-        margin-top: 2px;
-    }
-    /* Estilo do Card do Perfil do Time na Sidebar */
-    .team-profile-card {
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #172554 100%);
-        border: 1px solid #3b82f6;
-        border-radius: 16px;
-        padding: 16px 12px;
-        text-align: center;
-        margin-bottom: 20px;
-        box-shadow: 0 8px 20px rgba(59, 130, 246, 0.15);
-    }
-    .team-shield {
-        font-size: 2.2rem;
-        margin-bottom: 4px;
-        filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.5));
-    }
-    .team-title {
-        font-size: 1.35rem;
-        font-weight: 900;
-        color: #f8fafc;
-        letter-spacing: 1px;
-        margin-bottom: 2px;
-        text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-    }
-    .team-subtitle {
-        font-size: 0.75rem;
-        font-weight: 600;
-        color: #38bdf8;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-bottom: 8px;
-    }
-    .market-status-pill {
-        display: inline-flex;
-        align-items: center;
-        background: rgba(16, 185, 129, 0.15);
-        color: #34d399;
-        border: 1px solid rgba(16, 185, 129, 0.3);
-        padding: 3px 10px;
-        border-radius: 20px;
-        font-size: 0.70rem;
-        font-weight: 700;
-    }
-    .sidebar-section {
-        font-size: 0.80rem;
-        font-weight: 800;
-        color: #94a3b8;
-        text-transform: uppercase;
-        letter-spacing: 0.8px;
-        margin-top: 15px;
-        margin-bottom: 6px;
-        border-bottom: 1px solid #334155;
-        padding-bottom: 4px;
-    }
-    .sidebar-footer {
-        text-align: center;
-        color: #64748b;
-        font-size: 0.70rem;
-        margin-top: 25px;
-        padding-top: 10px;
-        border-top: 1px solid #1e293b;
-    }
-    /* Estilos dos Cards de Parciais Ao Vivo */
-    .live-card {
-        background: #1e293b;
-        border: 1px solid #334155;
-        border-radius: 14px;
-        padding: 10px 8px;
-        text-align: center;
-        position: relative;
-        min-height: 315px;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        align-items: center;
-        box-sizing: border-box;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-        margin-bottom: 12px;
-    }
-    .live-card-playing {
-        border-color: #38bdf8;
-        box-shadow: 0 0 14px rgba(56, 189, 248, 0.25);
-    }
-    .live-card-captain {
-        background: linear-gradient(145deg, #2a2415, #1e1b10);
-        border: 2px solid #f59e0b;
-        box-shadow: 0 0 15px rgba(245, 158, 11, 0.3);
-    }
-    .live-card-super-sub {
-        background: linear-gradient(145deg, #132e23, #0d1e17);
-        border: 2px solid #10b981;
-        box-shadow: 0 0 15px rgba(16, 185, 129, 0.3);
-    }
-    .live-score-box {
-        background: rgba(15, 23, 42, 0.95);
-        border: 1px solid #334155;
-        border-radius: 8px;
-        padding: 6px 8px;
-        margin: 4px 0;
-        width: 100%;
-        box-sizing: border-box;
-        text-align: center;
-    }
-    .live-score-val {
-        font-size: 1.30rem;
-        font-weight: 900;
-        line-height: 1.2;
-    }
-    .live-score-waiting {
-        font-size: 0.82rem;
-        font-weight: 700;
-        color: #94a3b8;
-    }
-    .live-scouts-container {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
-        gap: 2px;
-        width: 100%;
-        min-height: 22px;
-        margin-top: 3px;
-    }
-    .scout-chip {
-        font-size: 0.62rem;
-        font-weight: 800;
-        padding: 1px 4px;
-        border-radius: 4px;
-        background: #334155;
-        color: #f1f5f9;
-        display: inline-block;
-        white-space: nowrap;
-    }
-    .scout-chip-g { background: #059669; color: #fff; }
-    .scout-chip-a { background: #0284c7; color: #fff; }
-    .scout-chip-ds { background: #4f46e5; color: #fff; }
-    .scout-chip-de { background: #d97706; color: #fff; }
-    .scout-chip-sg { background: #16a34a; color: #fff; }
-    .scout-chip-ca { background: #eab308; color: #000; }
-    .scout-chip-cv { background: #dc2626; color: #fff; }
-    
-    /* Estilos do Mercado de Atletas e Consultor Tático */
-    .market-player-card {
-        background: #1e293b;
-        border: 1px solid #334155;
-        border-radius: 14px;
-        padding: 10px 8px;
-        text-align: center;
-        position: relative;
-        min-height: 295px;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        align-items: center;
-        box-sizing: border-box;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-        margin-bottom: 12px;
-    }
-    .market-tag {
-        display: inline-block;
-        padding: 2px 8px;
-        border-radius: 6px;
-        font-size: 0.68rem;
-        font-weight: 800;
-        text-transform: uppercase;
-        margin-top: 2px;
-    }
-    .market-rationale {
-        font-size: 0.70rem;
-        color: #94a3b8;
-        background: rgba(15, 23, 42, 0.7);
-        border-radius: 6px;
-        padding: 4px 6px;
-        line-height: 1.25;
-        width: 100%;
-        box-sizing: border-box;
-        min-height: 38px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        text-align: center;
-    }
-    .consult-card {
-        background: #1e293b;
-        border: 1px solid #334155;
-        border-radius: 12px;
-        padding: 12px 14px;
-        margin-bottom: 12px;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-    }
-    .consult-badge {
-        font-size: 0.70rem;
-        font-weight: 800;
-        padding: 3px 8px;
-        border-radius: 6px;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-    .consult-badge-manter {
-        background: rgba(16, 185, 129, 0.15);
-        color: #34d399;
-        border: 1px solid rgba(16, 185, 129, 0.3);
-    }
-    .consult-badge-atencao {
-        background: rgba(245, 158, 11, 0.15);
-        color: #fbbf24;
-        border: 1px solid rgba(245, 158, 11, 0.3);
-    }
-    .consult-badge-trocar {
-        background: rgba(239, 68, 68, 0.15);
-        color: #f87171;
-        border: 1px solid rgba(239, 68, 68, 0.3);
-    }
-    .consult-rationale {
-        font-size: 0.80rem;
-        color: #e2e8f0;
-        background: rgba(15, 23, 42, 0.75);
-        border-radius: 8px;
-        padding: 8px 10px;
-        margin-top: 8px;
-        line-height: 1.35;
-    }
-    .consult-swap-box {
-        background: linear-gradient(135deg, rgba(30, 58, 138, 0.25), rgba(15, 23, 42, 0.85));
-        border: 1px dashed #38bdf8;
-        border-radius: 8px;
-        padding: 8px 10px;
-        margin-top: 8px;
-    }
 
-    @media (max-width: 768px) {
-        .main-header { font-size: 1.6rem; }
-        .metric-value { font-size: 1.25rem; }
-        .player-card { min-height: 250px; padding: 6px 4px; }
-        .live-card { min-height: 290px; padding: 6px 4px; }
-        .market-player-card { min-height: 275px; padding: 6px 4px; }
-        .player-photo { width: 46px; height: 46px; }
-        .player-name { font-size: 0.78rem; }
-        .live-score-val { font-size: 1.15rem; }
-    }
-</style>
-""")
-
+inject_custom_css()
 
 @st.cache_data(ttl=600)
 def load_app_data(use_cache=True):
@@ -482,597 +71,6 @@ def load_app_data(use_cache=True):
     partidas_data = api.get_partidas(use_cache=use_cache)
     return config, mercado_data, partidas_data
 
-def render_market_player_card(p):
-    """Renderiza card visual no mercado de atletas com tags inteligentes."""
-    nome = p.get('Nome', 'Sem Nome')
-    pos = p.get('Posicao', '')
-    clube = p.get('Clube', '')
-    preco = p.get('Preco', 0.0)
-    media = p.get('Media', 0.0)
-    xp = p.get('Media_Ajustada', 0.0)
-    confronto = p.get('Confronto', '')
-    tag = p.get('Tag', 'Boa Opção')
-    tag_color = p.get('Tag_Color', '#f59e0b')
-    raw_just = p.get('Justificativa', '')
-    just = "" if pd.isna(raw_just) or str(raw_just).lower() == 'nan' else str(raw_just)
-    sg_prob = p.get('SG_Prob', None)
-    foto = p.get('Foto', '') or "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/generica.png"
-    escudo = p.get('Escudo', '')
-
-    escudo_html = f'<img src="{escudo}" class="club-crest"/>' if escudo else ''
-    sg_html = f'<span class="stat-badge badge-sg">🛡️ {sg_prob:.0f}%</span>' if (sg_prob is not None and pos in ['Goleiro', 'Lateral', 'Zagueiro']) else ''
-    
-    html = (
-        f'<div class="market-player-card">'
-        f'<div style="width:100%; display:flex; justify-content:space-between; align-items:center;">'
-        f'<span class="market-tag" style="background:{tag_color}20; color:{tag_color}; border:1px solid {tag_color}40;">🏷️ {tag}</span>'
-        f'<span class="stat-badge badge-pos" style="position:static;">{pos[:3].upper()}</span>'
-        f'</div>'
-        f'<div class="card-top">'
-        f'<img src="{foto}" class="player-photo" onerror="this.src=\'https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/generica.png\';"/>'
-        f'<div class="player-name" title="{nome}">{nome}</div>'
-        f'<div class="player-club">{escudo_html}<span>{clube} • {confronto}</span></div>'
-        f'</div>'
-        f'<div style="margin:4px 0; display:flex; justify-content:center; gap:2px;">'
-        f'<span class="stat-badge badge-price">C$ {preco:.2f}</span>'
-        f'<span class="stat-badge badge-xp">⚡ {xp:.2f}</span>'
-        f'{sg_html}'
-        f'</div>'
-        f'<div class="market-rationale" title="{just}">{just}</div>'
-        f'</div>'
-    )
-    st.html(html)
-
-def render_consult_player_card(s):
-    """Renderiza card de diagnóstico individual do consultor tático."""
-    nome = s.get('Nome', 'Sem Nome')
-    pos = s.get('Posicao', '')
-    clube = s.get('Clube', '')
-    preco = s.get('Preco', 0.0)
-    xp_final = s.get('xP_Final', 0.0)
-    confronto = s.get('Confronto', '')
-    is_cap = s.get('Is_Capitao', False)
-    status_cons = s.get('Status_Consultoria', 'MANTER')
-    just = s.get('Justificativa', '')
-    sugestao = s.get('Sugestao_Troca')
-    foto = s.get('Foto', '') or "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/generica.png"
-    escudo = s.get('Escudo', '')
-
-    if status_cons == 'MANTER':
-        badge_status_html = '<span class="consult-badge consult-badge-manter">✅ MANTER</span>'
-        border_color = "#10b981"
-    elif status_cons == 'ATENCAO':
-        badge_status_html = '<span class="consult-badge consult-badge-atencao">⚠️ ATENÇÃO / APOSTA</span>'
-        border_color = "#f59e0b"
-    else:
-        badge_status_html = '<span class="consult-badge consult-badge-trocar">❌ RECOMENDA TROCA</span>'
-        border_color = "#ef4444"
-
-    cap_html = '<span style="background:#f59e0b; color:#000; font-size:0.65rem; font-weight:800; padding:2px 6px; border-radius:4px; margin-right:4px;">👑 CAPITÃO (1.5x)</span>' if is_cap else ''
-    escudo_html = f'<img src="{escudo}" class="club-crest"/>' if escudo else ''
-
-    swap_html = ""
-    if sugestao:
-        gain_sign = "+" if sugestao['Delta_xP'] >= 0 else ""
-        price_txt = f"(Economiza C$ {sugestao['Delta_Preco']:.2f})" if sugestao['Delta_Preco'] > 0 else f"(Custa +C$ {-sugestao['Delta_Preco']:.2f})" if sugestao['Delta_Preco'] < 0 else "(Mesmo preço)"
-        swap_html = (
-            f'<div class="consult-swap-box">'
-            f'<div style="font-weight:800; font-size:0.75rem; color:#38bdf8; margin-bottom:2px;">🔄 Sugestão do Modelo:</div>'
-            f'<div style="font-size:0.78rem; color:#f8fafc;">Substituir por <b>{sugestao["Nome"]}</b> ({sugestao["Clube"]} - C$ {sugestao["Preco"]:.2f})</div>'
-            f'<div style="font-size:0.72rem; color:#34d399; font-weight:700; margin-top:2px;">{gain_sign}{sugestao["Delta_xP"]:.2f} pts esperados {price_txt}</div>'
-            f'<div style="font-size:0.68rem; color:#94a3b8; margin-top:3px; font-style:italic;">{sugestao["Justificativa"]}</div>'
-            f'</div>'
-        )
-
-    html = (
-        f'<div class="consult-card" style="border-left: 4px solid {border_color};">'
-        f'<div style="display:flex; justify-content:space-between; align-items:center; width:100%; margin-bottom:6px;">'
-        f'<div>{cap_html}<span style="font-size:0.70rem; font-weight:800; color:#94a3b8; text-transform:uppercase;">{pos}</span></div>'
-        f'{badge_status_html}'
-        f'</div>'
-        f'<div style="display:flex; align-items:center; width:100%; gap:10px;">'
-        f'<img src="{foto}" style="width:48px; height:48px; border-radius:50%; object-fit:cover; border:2px solid #475569;" onerror="this.src=\'https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/generica.png\';"/>'
-        f'<div style="flex:1; text-align:left;">'
-        f'<div style="font-weight:800; font-size:0.95rem; color:#f8fafc;">{nome}</div>'
-        f'<div style="font-size:0.75rem; color:#94a3b8;">{escudo_html}{clube} • {confronto} • C$ {preco:.2f}</div>'
-        f'</div>'
-        f'<div style="text-align:right;">'
-        f'<div style="font-size:0.65rem; color:#94a3b8; font-weight:700;">PROJEÇÃO</div>'
-        f'<div style="font-size:1.15rem; font-weight:900; color:#38bdf8;">{xp_final:.2f} pts</div>'
-        f'</div>'
-        f'</div>'
-        f'<div class="consult-rationale">{just}</div>'
-        f'{swap_html}'
-        f'</div>'
-    )
-    st.html(html)
-
-def order_defensive_line(df_defesa):
-    """Ordena a linha defensiva colocando os Laterais nas extremidades e os Zagueiros no centro.
-    Exemplos:
-      4 defensores (2 LAT, 2 ZAG): [Lateral 1, Zagueiro 1, Zagueiro 2, Lateral 2]
-      5 defensores (2 LAT, 3 ZAG): [Lateral 1, Zagueiro 1, Zagueiro 2, Zagueiro 3, Lateral 2]
-      3 defensores (0 LAT, 3 ZAG): [Zagueiro 1, Zagueiro 2, Zagueiro 3]
-    """
-    if df_defesa is None or df_defesa.empty:
-        return df_defesa
-    
-    lats = df_defesa[df_defesa['Posicao'] == 'Lateral']
-    zags = df_defesa[df_defesa['Posicao'] == 'Zagueiro']
-    
-    if len(lats) >= 2:
-        lat_left = lats.iloc[[0]]
-        lat_right = lats.iloc[[1]]
-        extra_lats = lats.iloc[2:] if len(lats) > 2 else pd.DataFrame()
-        return pd.concat([lat_left, zags, extra_lats, lat_right])
-    elif len(lats) == 1:
-        lat_left = lats.iloc[[0]]
-        return pd.concat([lat_left, zags])
-    else:
-        return zags
-
-def render_player_card(p, is_captain=False, is_super_sub=False, sub_gain=None):
-    """Renderiza um card visual elegante para um jogador."""
-    nome = p.get('Nome', 'Sem Nome')
-    pos = p.get('Posicao', '')
-    clube = p.get('Clube', '')
-    preco = p.get('Preco', 0.0)
-    media = p.get('Media', 0.0)
-    xp_val = p.get('Media_Ajustada', 0.0) * (1.5 if is_captain else 1.0)
-    sg_prob = p.get('SG_Prob', None)
-    foto = p.get('Foto', '') or "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/generica.png"
-    escudo = p.get('Escudo', '')
-
-    card_class = "player-card"
-    if is_captain:
-        card_class += " player-card-captain"
-    elif is_super_sub:
-        card_class += " player-card-super-sub"
-
-    captain_html = '<div class="badge-captain">👑 CAPITÃO</div>' if is_captain else ''
-    super_sub_html = '<div class="badge-captain" style="background:#10b981;color:#fff;font-size:0.8rem;padding:2px 6px;border-radius:6px;box-shadow:0 0 8px rgba(16,185,129,0.5);" title="Reserva de Luxo">⭐</div>' if is_super_sub else ''
-    badge_html = super_sub_html if is_super_sub else captain_html
-
-    escudo_html = f'<img src="{escudo}" class="club-crest"/>' if escudo else ''
-    sg_html = f'<span class="stat-badge badge-sg">🛡️ {sg_prob:.0f}%</span>' if (sg_prob is not None and pos in ['Goleiro', 'Lateral', 'Zagueiro']) else ''
-    gain_html = f'<div class="swap-gain-box">Troca: +{sub_gain:.2f} pts</div>' if (sub_gain and sub_gain > 0) else '<div class="swap-gain-box"></div>'
-
-    html = (
-        f'<div class="{card_class}">'
-        f'{badge_html}'
-        f'<div class="badge-pos">{pos[:3].upper()}</div>'
-        f'<div class="card-top">'
-        f'<img src="{foto}" class="player-photo" onerror="this.src=\'https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/generica.png\';"/>'
-        f'<div class="player-name" title="{nome}">{nome}</div>'
-        f'<div class="player-club">{escudo_html}<span>{clube} • Méd {media:.1f}</span></div>'
-        f'</div>'
-        f'<div class="card-bottom">'
-        f'<div>'
-        f'<span class="stat-badge badge-price">C$ {preco:.2f}</span>'
-        f'<span class="stat-badge badge-xp">⚡ {xp_val:.2f}</span>'
-        f'{sg_html}'
-        f'</div>'
-        f'{gain_html}'
-        f'</div>'
-        f'</div>'
-    )
-    st.html(html)
-
-def render_live_player_card(p, pinfo=None, is_captain=False, is_super_sub=False):
-    """Renderiza um card visual de acompanhamento ao vivo com comparativo xP vs Real."""
-    nome = p.get('Nome', 'Sem Nome')
-    pos = p.get('Posicao', '')
-    clube = p.get('Clube', '')
-    foto = p.get('Foto', '') or "https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/generica.png"
-    escudo = p.get('Escudo', '')
-
-    has_played = (pinfo is not None)
-    card_class = "live-card"
-    if has_played:
-        card_class += " live-card-playing"
-    if is_captain:
-        card_class += " live-card-captain"
-    elif is_super_sub:
-        card_class += " live-card-super-sub"
-
-    captain_html = '<div class="badge-captain">👑 CAPITÃO (1.5x)</div>' if is_captain else ''
-    super_sub_html = '<div class="badge-captain" style="background:#10b981;color:#fff;font-size:0.8rem;padding:2px 6px;border-radius:6px;box-shadow:0 0 8px rgba(16,185,129,0.5);" title="Reserva de Luxo">⭐</div>' if is_super_sub else ''
-    badge_html = super_sub_html if is_super_sub else captain_html
-    escudo_html = f'<img src="{escudo}" class="club-crest"/>' if escudo else ''
-
-    # Cálculo da Pontuação Esperada (xP) e Mínimo para Valorizar
-    xp_expected = p.get('Media_Ajustada', 0.0) * (1.5 if is_captain else 1.0)
-    preco_atleta = float(p.get('Preco', 10.0))
-    min_val = float(p.get('Min_Val', preco_atleta * 0.37))
-
-    if has_played:
-        pts_bruto = float(pinfo.get('pontuacao', 0.0))
-        pts_calc = pts_bruto * 1.5 if is_captain else pts_bruto
-        pts_color = "#34d399" if pts_calc >= 0 else "#f87171"
-        sub_txt = f'<div style="font-size:0.65rem;color:#f59e0b;">(Base: {pts_bruto:.2f} pts)</div>' if is_captain else ''
-        
-        # Comparativo: Desempenho Real vs. xP Projetado
-        diff = pts_calc - xp_expected
-        if diff > 0.5:
-            perf_html = f'<div style="font-size:0.65rem;font-weight:800;color:#34d399;margin-top:2px;">🔥 +{diff:.2f} vs xP ({xp_expected:.1f})</div>'
-        elif diff < -0.5:
-            perf_html = f'<div style="font-size:0.65rem;font-weight:800;color:#f87171;margin-top:2px;">❄️ {diff:.2f} vs xP ({xp_expected:.1f})</div>'
-        else:
-            perf_html = f'<div style="font-size:0.65rem;font-weight:800;color:#fbbf24;margin-top:2px;">🎯 Na meta xP ({xp_expected:.1f})</div>'
-
-        # Indicador de Valorização ao Vivo (Compacto)
-        diff_val = pts_bruto - min_val
-        if diff_val >= 0:
-            val_html = f'<div style="font-size:0.65rem;font-weight:800;color:#34d399;margin-top:2px;background:rgba(52,211,153,0.12);padding:2px 4px;border-radius:4px;border:1px solid rgba(52,211,153,0.3);">📈 +{diff_val:.2f} (Mín {min_val:.1f})</div>'
-        else:
-            val_html = f'<div style="font-size:0.65rem;font-weight:800;color:#f87171;margin-top:2px;background:rgba(248,113,113,0.12);padding:2px 4px;border-radius:4px;border:1px solid rgba(248,113,113,0.3);">📉 -{abs(diff_val):.2f} (Mín {min_val:.1f})</div>'
-
-        score_box_html = (
-            f'<div class="live-score-box">'
-            f'<div class="live-score-val" style="color:{pts_color};">{pts_calc:+.2f} <span style="font-size:0.8rem;">pts</span></div>'
-            f'{sub_txt}'
-            f'{perf_html}'
-            f'{val_html}'
-            f'</div>'
-        )
-        
-        # Scouts Chips
-        scouts_raw = pinfo.get('scout') or {}
-        scout_chips = []
-        if isinstance(scouts_raw, dict):
-            if scouts_raw.get('G'): scout_chips.append(f'<span class="scout-chip scout-chip-g">⚽ {scouts_raw["G"]}G</span>')
-            if scouts_raw.get('A'): scout_chips.append(f'<span class="scout-chip scout-chip-a">🎯 {scouts_raw["A"]}A</span>')
-            if scouts_raw.get('DS'): scout_chips.append(f'<span class="scout-chip scout-chip-ds">🛡️ {scouts_raw["DS"]}DS</span>')
-            if scouts_raw.get('DE'): scout_chips.append(f'<span class="scout-chip scout-chip-de">🧤 {scouts_raw["DE"]}DE</span>')
-            if scouts_raw.get('SG'): scout_chips.append(f'<span class="scout-chip scout-chip-sg">🛡️ SG</span>')
-            if scouts_raw.get('FD'): scout_chips.append(f'<span class="scout-chip scout-chip-a">⚡ {scouts_raw["FD"]}FD</span>')
-            if scouts_raw.get('FF'): scout_chips.append(f'<span class="scout-chip scout-chip-a">👟 {scouts_raw["FF"]}FF</span>')
-            if scouts_raw.get('FT'): scout_chips.append(f'<span class="scout-chip scout-chip-g">🥅 {scouts_raw["FT"]}FT</span>')
-            if scouts_raw.get('FS'): scout_chips.append(f'<span class="scout-chip scout-chip-ds">🩹 {scouts_raw["FS"]}FS</span>')
-            if scouts_raw.get('CA'): scout_chips.append(f'<span class="scout-chip scout-chip-ca">🟨 {scouts_raw["CA"]}CA</span>')
-            if scouts_raw.get('CV'): scout_chips.append(f'<span class="scout-chip scout-chip-cv">🟥 {scouts_raw["CV"]}CV</span>')
-            if scouts_raw.get('FC'): scout_chips.append(f'<span class="scout-chip scout-chip-cv">⚠️ {scouts_raw["FC"]}FC</span>')
-            if scouts_raw.get('GS'): scout_chips.append(f'<span class="scout-chip scout-chip-cv">🥅 {scouts_raw["GS"]}GS</span>')
-            if scouts_raw.get('I'): scout_chips.append(f'<span class="scout-chip scout-chip-ca">🚩 {scouts_raw["I"]}Imp</span>')
-            if scouts_raw.get('DP'): scout_chips.append(f'<span class="scout-chip scout-chip-g">🧤 {scouts_raw["DP"]}DP</span>')
-            if scouts_raw.get('PP'): scout_chips.append(f'<span class="scout-chip scout-chip-cv">❌ {scouts_raw["PP"]}PP</span>')
-            if scouts_raw.get('GC'): scout_chips.append(f'<span class="scout-chip scout-chip-cv">🚫 {scouts_raw["GC"]}GC</span>')
-            if scouts_raw.get('V'): scout_chips.append(f'<span class="scout-chip scout-chip-g">🏆 Vit</span>')
-        
-        chips_html = "".join(scout_chips) if scout_chips else '<span style="font-size:0.70rem;color:#94a3b8;">Em campo</span>'
-
-    else:
-        val_meta_html = f'<div style="font-size:0.65rem;font-weight:700;color:#38bdf8;margin-top:2px;">💵 Mínimo: {min_val:.2f} pts</div>'
-        score_box_html = (
-            f'<div class="live-score-box">'
-            f'<div class="live-score-waiting">⏳ AGUARDANDO</div>'
-            f'<div style="font-size:0.65rem;font-weight:700;color:#94a3b8;margin-top:2px;">⚡ xP: {xp_expected:.2f} pts</div>'
-            f'{val_meta_html}'
-            f'</div>'
-        )
-        chips_html = '<span style="font-size:0.70rem;color:#64748b;">Jogo a iniciar</span>'
-
-
-
-    html = (
-        f'<div class="{card_class}">'
-        f'{badge_html}'
-        f'<div class="badge-pos">{pos[:3].upper()}</div>'
-        f'<div class="card-top">'
-        f'<img src="{foto}" class="player-photo" onerror="this.src=\'https://s3.glbimg.com/v1/AUTH_58d78b787ec34892b5aaa0c7a146155f/clubes_2026/silhuetas/generica.png\';"/>'
-        f'<div class="player-name" title="{nome}">{nome}</div>'
-        f'<div class="player-club">{escudo_html}<span>{clube}</span></div>'
-        f'</div>'
-        f'{score_box_html}'
-        f'<div class="live-scouts-container">{chips_html}</div>'
-        f'</div>'
-    )
-    st.html(html)
-
-def validate_lineup_rules(selected_df, reservas):
-    """Valida as regras oficiais do Cartola FC para titulares e banco de reservas."""
-    errors = []
-    if selected_df is None or selected_df.empty:
-        return False, ["Nenhum atleta titular selecionado."]
-    
-    if len(selected_df) < 12:
-        errors.append(f"O time titular possui apenas {len(selected_df)} de 12 atletas necessários.")
-
-    # 1. Checagem de reservas
-    if reservas:
-        for r_pos, r_obj in reservas.items():
-            if not hasattr(r_obj, 'get'):
-                continue
-            s_sub = selected_df[selected_df['Posicao'] == r_pos]
-            if s_sub.empty:
-                errors.append(f"A posição **{r_pos}** não é utilizada nesta formação tática, portanto não pode conter reserva.")
-                continue
-            min_p = float(s_sub['Preco'].min())
-            r_p = float(r_obj.get('Preco', 999.0))
-            if r_p > min_p:
-                errors.append(f"O reserva **{r_obj.get('Nome')}** ({r_pos} - C$ {r_p:.2f}) custa mais que o titular mais barato da posição (C$ {min_p:.2f}). Regra oficial da Globo: o reserva deve custar no máximo o valor do titular mais barato.")
-            status_id = r_obj.get('Status_ID')
-            if status_id is not None and int(status_id) != 7:
-                st_nome = r_obj.get('Status_Nome', 'Não Provável')
-                errors.append(f"O reserva **{r_obj.get('Nome')}** ({r_pos}) possui status **'{st_nome}'**. Apenas atletas com status **'Provável'** são permitidos.")
-                
-    return len(errors) == 0, errors
-
-def handle_globo_escalacao_result(success, resp_globo, rodada_num, selected_df, capitao_row, reservas, super_sub_pos="Atacante"):
-    if success:
-        st.balloons()
-        st.success("🎉 **SUCESSO ABSOLUTO!** O time foi escalado diretamente na sua conta oficial do Cartola FC!")
-        save_official_team(
-            rodada=rodada_num,
-            starters_df=selected_df,
-            captain_id=int(capitao_row['ID']),
-            reserves_dict=reservas,
-            super_sub_pos=super_sub_pos
-        )
-        time.sleep(3.5)
-        st.rerun()
-    else:
-        if "Expired" in str(resp_globo) or "não autorizado" in str(resp_globo) or "401" in str(resp_globo):
-            st.error("❌ **Token da Globo Expirado:** A Globo invalida os tokens de autenticação a cada 60 minutos.")
-            st.info("💡 **Como renovar em 10 segundos:**\n1. No navegador, acesse o Cartola e aperte **F12** -> aba **Rede**\n2. Copie o valor do cabeçalho **`Authorization`** (`Bearer eyJ...`)\n3. Cole no menu lateral em **'🔑 Renovar Token Globo'** e clique em **Atualizar Token**!")
-        elif "cofre" in str(resp_globo).lower():
-            team_cost = selected_df['Preco'].sum() if ('Preco' in selected_df.columns) else 0.0
-            st.error("💰 **Saldo Insuficiente no Cartola (Cofre):**")
-            st.warning(
-                f"O Cartola FC recusou a escalação porque o custo total do time (**C$ {team_cost:.2f}**) ultrapassa o saldo de cartoletas disponível no seu cofre na conta oficial da Globo.\n\n"
-                "👉 **Como resolver em 2 passos rápidos:**\n"
-                "1. No menu lateral, acerte o campo **💰 Orçamento / Cofre (C$)** com o valor exato (ou um pouco abaixo) do seu patrimônio/saldo real no Cartola.\n"
-                "2. Clique em **🚀 OTIMIZAR NOVO TIME** (ou substitua atletas caros) e tente clicar em **🚀 Escalar na Globo** novamente!"
-            )
-        else:
-            st.error(f"❌ Erro ao enviar para o Cartola: {resp_globo}")
-
-def sync_team_from_globo(api, token, rodada_num, mercado_data, partidas_data, scorer):
-    """
-    Busca a escalação mais recente direto da conta oficial do Cartola FC,
-    processa todos os titulares e reservas com os metadados do modelo,
-    e persiste como time oficial ativo (JSON local + Google Sheets).
-    """
-    if not token:
-        return False, "Token de autenticação não encontrado. Conecte sua conta Globo no menu lateral para sincronizar."
-
-    try:
-        user_glb_team = api.get_user_team(token)
-    except Exception as e:
-        return False, f"Falha ao conectar à API da Globo: {str(e)}"
-
-    if not user_glb_team:
-        return False, "Não foi possível obter a escalação da Globo. Verifique se seu token expirou ou renove a sessão."
-
-    # 1. Extração dos Titulares
-    raw_atletas = user_glb_team.get('atletas', [])
-    starters_ids = []
-    for a in raw_atletas:
-        if isinstance(a, dict):
-            a_id = a.get('atleta_id', a.get('id'))
-        else:
-            a_id = a
-        if a_id is not None:
-            try:
-                starters_ids.append(int(a_id))
-            except (ValueError, TypeError):
-                pass
-
-    if not starters_ids:
-        return False, "Nenhum atleta titular encontrado no time retornado pelo Cartola FC."
-
-    # 2. Capitão
-    cap_id_raw = user_glb_team.get('capitao_id') or user_glb_team.get('capitao')
-    cap_id = int(cap_id_raw) if cap_id_raw else None
-
-    # 3. Reserva de Luxo
-    super_sub_id_raw = user_glb_team.get('reserva_luxo_id') or user_glb_team.get('reserva_luxo')
-    super_sub_id = int(super_sub_id_raw) if super_sub_id_raw else None
-
-    # 4. Reservas
-    raw_reservas = user_glb_team.get('reservas', {})
-    pos_id_to_name = {
-        1: 'Goleiro',
-        2: 'Lateral',
-        3: 'Zagueiro',
-        4: 'Meia',
-        5: 'Atacante'
-    }
-    pos_name_map = {
-        'goleiro': 'Goleiro', 'lateral': 'Lateral', 'zagueiro': 'Zagueiro', 'meia': 'Meia', 'atacante': 'Atacante',
-        'gol': 'Goleiro', 'lat': 'Lateral', 'zag': 'Zagueiro', 'mei': 'Meia', 'ata': 'Atacante'
-    }
-
-    reserves_ids = {}
-    if isinstance(raw_reservas, dict):
-        for k, val in raw_reservas.items():
-            pos_name = None
-            try:
-                pos_int = int(k)
-                pos_name = pos_id_to_name.get(pos_int)
-            except (ValueError, TypeError):
-                pos_name = pos_name_map.get(str(k).lower().strip())
-
-            if not pos_name and isinstance(val, dict) and 'posicao_id' in val:
-                pos_name = pos_id_to_name.get(int(val['posicao_id']))
-
-            r_id = None
-            if isinstance(val, dict):
-                r_id = val.get('atleta_id', val.get('id'))
-            elif val is not None:
-                try:
-                    r_id = int(val)
-                except Exception:
-                    pass
-
-            if pos_name and r_id:
-                reserves_ids[pos_name] = int(r_id)
-
-    elif isinstance(raw_reservas, list):
-        for item in raw_reservas:
-            if isinstance(item, dict):
-                p_id = item.get('posicao_id')
-                pos_name = pos_id_to_name.get(int(p_id)) if p_id else None
-                a_id = item.get('atleta_id', item.get('id'))
-                if pos_name and a_id:
-                    reserves_ids[pos_name] = int(a_id)
-
-    # 5. Processamento com metadados do modelo
-    all_needed_ids = list(set(starters_ids + list(reserves_ids.values())))
-    full_df = scorer.process_data(mercado_data, partidas_data, target_athlete_ids=all_needed_ids)
-
-    # DataFrame dos Titulares
-    starters_df = full_df[full_df['ID'].isin(starters_ids)].copy()
-
-    # Validação do capitão
-    if cap_id not in starters_df['ID'].tolist():
-        if not starters_df.empty:
-            cap_id = int(starters_df.sort_values(by='Media_Ajustada', ascending=False).iloc[0]['ID'])
-        else:
-            cap_id = starters_ids[0]
-
-    starters_df['Is_Capitao'] = (starters_df['ID'] == cap_id)
-
-    # Dicionário dos Reservas
-    reserves_dict = {}
-    super_sub_pos = "Atacante"
-    for pos, r_id in reserves_ids.items():
-        sub_df = full_df[full_df['ID'] == r_id]
-        if not sub_df.empty:
-            r_series = sub_df.iloc[0].copy()
-            starter_pos_players = starters_df[starters_df['Posicao'] == pos]
-            worst_starter_xp = starter_pos_players['Media_Ajustada'].min() if not starter_pos_players.empty else 0.0
-            r_series['Worst_Starter_XP'] = worst_starter_xp
-            r_series['Expected_Gain'] = round(max(0.0, (r_series.get('Upside', r_series.get('Media_Ajustada', 0.0)) - worst_starter_xp) * 0.4), 2)
-            reserves_dict[pos] = r_series
-            if super_sub_id and int(r_id) == int(super_sub_id):
-                super_sub_pos = pos
-
-    if not super_sub_id or super_sub_pos not in reserves_dict:
-        if 'Atacante' in reserves_dict:
-            super_sub_pos = 'Atacante'
-        elif 'Meia' in reserves_dict:
-            super_sub_pos = 'Meia'
-        elif reserves_dict:
-            super_sub_pos = list(reserves_dict.keys())[0]
-
-    actual_round = rodada_num
-    if user_glb_team.get('rodada'):
-        try:
-            actual_round = int(user_glb_team['rodada'])
-        except Exception:
-            pass
-    elif actual_round == '?':
-        actual_round = 31
-
-    # 6. Salvar snapshot oficial
-    save_official_team(
-        rodada=actual_round,
-        starters_df=starters_df,
-        captain_id=cap_id,
-        reserves_dict=reserves_dict,
-        super_sub_pos=super_sub_pos
-    )
-
-    # Limpar estados transitórios locais
-    if "custom_starters_df" in st.session_state:
-        del st.session_state["custom_starters_df"]
-    if "custom_reserves" in st.session_state:
-        del st.session_state["custom_reserves"]
-    if "custom_super_sub_pos" in st.session_state:
-        del st.session_state["custom_super_sub_pos"]
-
-    # Atualizar dados de patrimônio e saldo no estado da sessão
-    glb_pat = user_glb_team.get('patrimonio') or user_glb_team.get('time', {}).get('patrimonio') or user_glb_team.get('patrimonio_num')
-    if glb_pat is not None:
-        try:
-            if "cartola_session" in st.session_state and st.session_state["cartola_session"]:
-                st.session_state["cartola_session"]["patrimonio"] = float(glb_pat)
-        except Exception:
-            pass
-
-    return True, f"Time da Rodada {actual_round} sincronizado com sucesso da Globo ({len(starters_df)} titulares e {len(reserves_dict)} reservas)!"
-
-def render_login_screen():
-    st.html('''
-    <div style="max-width: 600px; margin: 30px auto 10px auto; padding: 32px 28px; background: linear-gradient(145deg, rgba(15,23,42,0.95), rgba(30,41,59,0.95)); border: 1px solid rgba(56,189,248,0.3); border-radius: 20px; box-shadow: 0 20px 40px rgba(0,0,0,0.6); text-align: center;">
-        <div style="font-size: 3.5rem; margin-bottom: 8px;">🛡️⚽</div>
-        <h1 style="font-size: 1.8rem; font-weight: 800; color: #f8fafc; margin: 0; background: linear-gradient(90deg, #38bdf8, #818cf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">M1TOS EC • Cartola Pro</h1>
-        <p style="color: #94a3b8; font-size: 0.95rem; margin-top: 6px; margin-bottom: 20px;">Conecte seu token de autenticação oficial para escalação automática em 1 clique e gestão tática inteligente.</p>
-    </div>
-    ''')
-    
-    col_l, col_center, col_r = st.columns([1, 2.4, 1])
-    with col_center:
-        with st.container():
-            st.markdown("### 🔑 Conexão via Token do Cartola FC")
-            
-            token_input = st.text_area(
-                "Cole seu Bearer Token do Cartola FC:",
-                placeholder="Exemplo: Bearer eyJhbGciOiJSUzI1NiIs...",
-                height=110,
-                key="gateway_token_input",
-                help="Cole o token Bearer ou JWT oficial da sua conta do Cartola FC."
-            )
-            remember_session = st.checkbox(
-                "💾 Salvar sessão de forma persistente (Google Sheets)",
-                value=True,
-                help="Mantém você conectado automaticamente nas próximas visitas sem precisar colar o token de novo."
-            )
-            
-            if st.button("🚀 CONECTAR MEU TIME", type="primary", use_container_width=True, key="gateway_btn_do_token"):
-                clean_tok = token_input.strip()
-                if not clean_tok:
-                    st.warning("⚠️ Cole o seu Bearer Token no campo acima para continuar.")
-                else:
-                    auth_header = clean_tok if clean_tok.startswith("Bearer ") else f"Bearer {clean_tok}"
-                    with st.spinner("Validando token com a API do Cartola FC..."):
-                        valid, team_info = AuthManager.validate_token(auth_header)
-                        if valid:
-                            team_name = team_info.get("nome", "M1TOS EC") if team_info else "M1TOS EC"
-                            patrimonio = float(team_info.get("patrimonio", 136.94)) if team_info else 136.94
-                            sess = {
-                                "email": "usuario@cartola.pro",
-                                "token": auth_header,
-                                "glbid": auth_header.replace("Bearer ", ""),
-                                "authenticated_at": datetime.now().isoformat(),
-                                "team_name": team_name,
-                                "nome_cartola": team_info.get("nome_cartola", "") if team_info else "",
-                                "patrimonio": patrimonio,
-                                "foto_perfil": team_info.get("foto_perfil", "") if team_info else "",
-                                "url_escudo_svg": team_info.get("url_escudo_svg", "") if team_info else ""
-                            }
-                            AuthManager.save_session(sess, save_to_cloud=remember_session)
-                            st.session_state["cartola_session"] = sess
-                            st.session_state["cartola_token"] = auth_header
-                            st.session_state["guest_mode"] = False
-                            st.session_state["logged_out"] = False
-                            st.balloons()
-                            st.success(f"🎉 **Time Conectado com Sucesso!** Bem-vindo, **{team_name}** (C$ {patrimonio:.2f})!")
-                            time.sleep(1.2)
-                            st.rerun()
-                        else:
-                            st.error("❌ Token inválido ou expirado. Verifique se copiou o token completo que começa com 'Bearer eyJ...' ou 'eyJ...'")
-
-            # Tutorial Passo a Passo Detalhado
-            with st.expander("📖 Tutorial Rápido: Como pegar o seu Token em 20 segundos", expanded=True):
-                st.markdown("""
-                1. No seu computador, abra o site do Cartola: **[ge.globo.com/cartola](https://ge.globo.com/cartola/)**
-                2. Verifique se o seu time já está aberto e logado na tela.
-                3. Pressione a tecla **`F12`** no teclado *(ou clique com o botão direito e escolha "Inspecionar")*.
-                4. Clique na aba **Rede** *(ou **Network**)* na janela que abrir.
-                5. No campo de filtro (lupa), digite: **`time`**
-                6. Pressione **`F5`** para atualizar a página.
-                7. Clique na requisição chamada **`info`** ou **`time`** que aparecer na lista.
-                8. Na aba **Headers** *(ou Cabeçalhos)* à direita, role até **Request Headers** *(Cabeçalhos da Solicitação)*.
-                9. Copie o valor inteiro da linha **`Authorization:`** *(começa com `Bearer ey...`)* e cole aqui acima!
-                """)
-
-            st.markdown("---")
-            if st.button("👀 Continuar como Visitante (Modo Apenas Consulta)", use_container_width=True, key="gateway_btn_guest"):
-                st.session_state["guest_mode"] = True
-                st.session_state["logged_out"] = False
-                st.rerun()
 
 def main():
     is_guest = st.session_state.get("guest_mode", False)
@@ -1110,12 +108,12 @@ def main():
         active_token = st.session_state.get("cartola_token", "")
         team_name_disp = "M1TOS EC"
         patrimonio_real = 141.66
-        
+
         if session_data:
             team_name_disp = session_data.get("team_name", "M1TOS EC")
             patrimonio_real = float(session_data.get("patrimonio", 141.66))
             active_token = session_data.get("token", active_token)
-            
+
         if active_token:
             try:
                 temp_api = CartolaAPI(load_config())
@@ -1150,7 +148,7 @@ def main():
         # Card do Perfil do Time
         status_color = "#38bdf8" if active_token else "#f59e0b"
         status_text = "🟢 CONECTADO À GLOBO" if active_token else "🟡 MODO CONSULTA"
-        
+
         st.html(f'''
         <div class="team-profile-card">
             <div class="team-shield">🏆</div>
@@ -1247,7 +245,7 @@ def main():
                 index=0,
                 help="A opção Automática testa todas as 5 formações e escolhe a que projeta a maior pontuação global."
             )
-            
+
             max_per_club = st.slider(
                 "Máx. Jogadores por Clube:",
                 min_value=2,
@@ -1255,13 +253,13 @@ def main():
                 value=5,
                 help="Limite de segurança para evitar dependência excessiva de uma única equipe."
             )
-            
+
             avoid_conflict = st.checkbox(
                 "🛡️ Evitar Ataque vs Defesa (Proteção SG)",
                 value=config_preview.get('defaults', {}).get('avoid_attack_vs_defense_conflict', True),
                 help="Impede a escalação de atacantes ou meias contra os defensores escalados no mesmo confronto, eliminando canibalização de SG."
             )
-            
+
             # Reset automático de modificações manuais caso mude de tática ou orçamento
             last_b = st.session_state.get("last_tactical_budget")
             last_f = st.session_state.get("last_tactical_formation")
@@ -1279,7 +277,7 @@ def main():
         # Conexão com a API
         st.html('<div class="sidebar-section">🔄 ATUALIZAÇÃO DA API</div>')
         force_refresh = st.checkbox("Forçar atualização ao vivo da Globo", value=False)
-        
+
         if app_mode == "simulador":
             st.markdown("")
             if st.button("🚀 OTIMIZAR NOVO TIME", type="primary", use_container_width=True, key="btn_run_optimizer"):
@@ -1288,7 +286,7 @@ def main():
                         del st.session_state[k]
                 st.rerun()
 
-        
+
         # Placeholder para o botão de exportação na Sidebar
         export_sidebar_placeholder = st.sidebar.empty()
 
@@ -1334,7 +332,7 @@ def main():
                         st.error("Arquivo JSON inválido para escalação.")
                 except Exception as e:
                     st.error(f"Erro ao ler arquivo: {e}")
-        
+
         # Rodapé da Sidebar
         st.html('''
         <div class="sidebar-footer">
@@ -1349,14 +347,13 @@ def main():
         api = CartolaAPI(config)
         scorer = Scorer(config)
         optimizer = TeamOptimizer(config)
-        exporter = Exporter()
-        
+
         rodada_num = partidas_data.get('rodada', '?')
         official_starters_ids = official_data.get('starters_ids', [])
         official_captain_id = official_data.get('captain_id', 0)
         official_reserves_ids = official_data.get('reserves_ids', {})
         official_super_sub_pos = official_data.get('super_sub_pos', 'Atacante')
-        
+
         # Se foi disparada sincronização com a Globo pelo menu lateral
         if st.session_state.get("trigger_sync_globo"):
             st.session_state["trigger_sync_globo"] = False
@@ -1373,21 +370,21 @@ def main():
         target_ids = (official_starters_ids + list(official_reserves_ids.values())) if app_mode == "oficial" else None
         with st.spinner("Processando dados dos atletas e confrontos..."):
             df = scorer.process_data(mercado_data, partidas_data, target_athlete_ids=target_ids)
-            
+
             if df.empty:
                 st.error("Nenhum atleta disponível para processamento.")
                 return
-                
+
             all_formations_summary = None
-            
+
             if app_mode == "oficial":
                 if str(rodada_num) != str(official_round) and rodada_num != '?':
                     st.info(f"📜 **Histórico / Time Oficial (Rodada {official_round})** — A Globo já abriu a **Rodada {rodada_num}**. Acesse o **Simulador** quando quiser escalar o novo time!")
                 else:
                     st.success(f"🛡️ **Time Oficial do M1TOS EC (Rodada {official_round})** — Acompanhamento ao vivo sincronizado com a Globo.")
-                    
+
                 chosen_formation = "4-3-3"
-                
+
                 # Se houver snapshot congelado com preços e xP originais, usa diretamente
                 if official_data.get('starters'):
                     selected_df = pd.DataFrame(official_data['starters'])
@@ -1581,684 +578,53 @@ def main():
 
             "🛒 Mercado & Tags",
             "🔍 Consultor Tático",
-            "🏟️ Escalação Tática (Cards)", 
-            "🔴 Parciais Ao Vivo", 
-            "📊 Tabela Detalhada", 
+            "🏟️ Escalação Tática (Cards)",
+            "🔴 Parciais Ao Vivo",
+            "📊 Tabela Detalhada",
             "📈 Comparativo de Formações"
         ])
 
         with tab_market:
-            # 🛒 MERCADO DE ATLETAS COM TAGS INTELIGENTES
-            st.subheader(f"🛒 Mercado Oficial de Atletas • Rodada {rodada_num}")
-            st.caption("Explore os atletas com tags de recomendação geradas pelo modelo matemático. Use a busca e filtros para montar ou ajustar sua equipe.")
-            
-            # Filtros do Mercado
-            f_col1, f_col2, f_col3, f_col4 = st.columns([1.5, 1.5, 1.5, 2.5])
-            with f_col1:
-                pos_filter = st.selectbox("Posição:", ["Todas", "Goleiro", "Lateral", "Zagueiro", "Meia", "Atacante", "Técnico"], index=0)
-            with f_col2:
-                club_list = ["Todos"] + sorted(list(df['Clube'].unique()))
-                club_filter = st.selectbox("Clube:", club_list, index=0)
-            with f_col3:
-                tag_filter = st.selectbox("Tag do Modelo:", ["Todas", "Excelente", "Boa Opção", "Aposta", "Evitar"], index=0)
-            with f_col4:
-                search_query = st.text_input("🔍 Buscar Atleta:", placeholder="Digite o nome do jogador...")
-
-            # Ordenação
-            ord_col1, ord_col2 = st.columns([2, 2])
-            with ord_col1:
-                sort_by = st.selectbox("Ordenar por:", [
-                    "Maior xP (Projetado)", "Menor Preço", "Maior Preço", "Maior Média Histórica", "Maior Teto (Upside)"
-                ], index=0)
-
-            # Filtrar DataFrame do Mercado
-            m_df = df.copy()
-            if pos_filter != "Todas":
-                m_df = m_df[m_df['Posicao'] == pos_filter]
-            if club_filter != "Todos":
-                m_df = m_df[m_df['Clube'] == club_filter]
-            if tag_filter != "Todas":
-                m_df = m_df[m_df['Tag'] == tag_filter]
-            if search_query:
-                m_df = m_df[m_df['Nome'].str.contains(search_query, case=False, na=False)]
-
-            # Aplicar Ordenação
-            if sort_by == "Maior xP (Projetado)":
-                m_df = m_df.sort_values(by="Media_Ajustada", ascending=False)
-            elif sort_by == "Menor Preço":
-                m_df = m_df.sort_values(by="Preco", ascending=True)
-            elif sort_by == "Maior Preço":
-                m_df = m_df.sort_values(by="Preco", ascending=False)
-            elif sort_by == "Maior Média Histórica":
-                m_df = m_df.sort_values(by="Media", ascending=False)
-            elif sort_by == "Maior Teto (Upside)":
-                m_df = m_df.sort_values(by="Upside", ascending=False)
-
-            st.write(f"Exibindo **{len(m_df)}** atletas encontrados:")
-
-            # Renderizar Grid do Mercado (4 por linha) com Ações Diretas
-            grid_cols_num = 4
-            selected_ids_set = set(selected_df['ID'].tolist())
-            m_list = m_df.to_dict('records')
-            for i in range(0, len(m_list), grid_cols_num):
-                row_athletes = m_list[i:i+grid_cols_num]
-                cols = st.columns(len(row_athletes))
-                for idx, ath in enumerate(row_athletes):
-                    with cols[idx]:
-                        render_market_player_card(ath)
-                        ath_id = ath.get('ID')
-                        ath_pos = ath.get('Posicao')
-                        ath_name = ath.get('Nome')
-                        
-                        if ath_id in selected_ids_set:
-                            st.html('<div style="text-align:center; padding:4px 0; font-size:0.80rem; font-weight:700; color:#10b981;">✅ Já Escalado</div>')
-                        else:
-                            # Titulares na mesma posição disponíveis para serem substituídos
-                            pos_starters = selected_df[selected_df['Posicao'] == ath_pos]
-                            if not pos_starters.empty:
-                                starter_names = pos_starters['Nome'].tolist()
-                                with st.popover(f"➕ Escalar ({ath_pos[:3].upper()})", use_container_width=True):
-                                    st.write(f"**Escalar {ath_name}** no lugar de:")
-                                    target_starter = st.selectbox(
-                                        "Substituir quem?",
-                                        options=starter_names,
-                                        key=f"market_sub_target_{ath_id}_{i}"
-                                    )
-                                    if st.button("Confirmar Substituição", key=f"btn_confirm_market_sub_{ath_id}_{i}", type="primary", use_container_width=True):
-                                        out_p = selected_df[selected_df['Nome'] == target_starter].iloc[0]
-                                        new_row = pd.Series(ath).copy()
-                                        new_row['Is_Capitao'] = bool(out_p.get('Is_Capitao', False))
-                                        new_df = selected_df[selected_df['Nome'] != target_starter].copy()
-                                        new_df = pd.concat([new_df, pd.DataFrame([new_row])], ignore_index=True)
-                                        st.session_state["custom_starters_df"] = new_df
-                                        st.session_state["custom_mode_owner"] = app_mode
-                                        st.success(f"✅ {target_starter} substituído por {ath_name}!")
-                                        st.rerun()
-                            else:
-                                st.caption("Posição não usada nesta formação")
+            render_market_tab(df, selected_df, rodada_num, app_mode)
 
         with tab_consult:
-            # 🔍 CONSULTOR TÁTICO & DIAGNÓSTICO ATLETA POR ATLETA
-            st.subheader(f"🔍 Consultor Tático & Diagnóstico do Time (Rodada {rodada_num})")
-            
-            advisor_res = optimizer.analyze_user_lineup(
-                df=df,
-                selected_df=selected_df,
-                captain_id=capitao_row['ID'],
-                budget=budget
+            render_consult_tab(
+                df, selected_df, reservas, capitao_row, chosen_formation,
+                super_sub_id, super_sub_pos_chosen, rodada_num, budget, app_mode,
+                active_token, api, scorer, optimizer, mercado_data, partidas_data,
             )
 
-            if advisor_res:
-                # Banner de Veredito Geral
-                st.html(f'''
-                <div style="background:linear-gradient(135deg, #0f172a, #1e293b); border:2px solid {advisor_res['rating_color']}; border-radius:14px; padding:16px 20px; margin-bottom:20px;">
-                    <div style="font-size:1.35rem; font-weight:900; color:{advisor_res['rating_color']}; margin-bottom:4px;">
-                        {advisor_res['rating']}
-                    </div>
-                    <div style="font-size:0.90rem; color:#cbd5e1; margin-bottom:12px;">
-                        {advisor_res['rating_desc']}
-                    </div>
-                    <div style="display:flex; flex-wrap:wrap; gap:10px;">
-                        <span class="consult-badge consult-badge-manter">✅ {advisor_res['manter_count']} Atletas Recomendados</span>
-                        <span class="consult-badge consult-badge-atencao">⚠️ {advisor_res['atencao_count']} Em Atenção / Aposta</span>
-                        <span class="consult-badge consult-badge-trocar">❌ {advisor_res['trocar_count']} Sugestões de Troca</span>
-                    </div>
-                </div>
-                ''')
-
-                if advisor_res['trocar_count'] > 0 and advisor_res['total_gain_potential'] > 0:
-                    st.info(f"💡 **Potencial de Ganho:** Aplicando as substituições recomendadas pelo modelo abaixo, seu time pode ganhar aproximadamente **+{advisor_res['total_gain_potential']:.2f} pts** adicionais sem estourar o orçamento!")
-
-                # Exibição Atleta por Atleta em 2 Colunas
-                starters_list = advisor_res['starters']
-                c_left, c_right = st.columns(2)
-                for idx, s in enumerate(starters_list):
-                    target_col = c_left if idx % 2 == 0 else c_right
-                    with target_col:
-                        render_consult_player_card(s)
-                        sug = s.get('Sugestao_Troca')
-                        if sug:
-                            if st.button(f"🔄 Aplicar Troca: Entra {sug['Nome']}", key=f"btn_apply_sug_{s['ID']}_{idx}", use_container_width=True):
-                                target_out = s['Nome']
-                                cand_row = df[df['ID'] == sug['ID']]
-                                if not cand_row.empty:
-                                    new_row = cand_row.iloc[0].copy()
-                                    new_row['Is_Capitao'] = bool(s.get('Is_Capitao', False))
-                                    new_df = selected_df[selected_df['Nome'] != target_out].copy()
-                                    new_df = pd.concat([new_df, pd.DataFrame([new_row])], ignore_index=True)
-                                    st.session_state["custom_starters_df"] = new_df
-                                    st.session_state["custom_mode_owner"] = app_mode
-                                    st.success(f"✅ {target_out} substituído por {sug['Nome']}!")
-                                    st.rerun()
-
-                # Ações Finais da Consultoria
-                st.markdown("---")
-                token_active = st.session_state.get("cartola_token", "")
-                
-                if token_active:
-                    btn_c1, btn_c2, btn_c3 = st.columns(3)
-                    with btn_c1:
-                        if st.button(f"💾 SALVAR NO APP (RODADA {rodada_num})", use_container_width=True, key="btn_save_advisor"):
-                            best_res_pos_calc = None
-                            max_up = -1.0
-                            for pos, r in reservas.items():
-                                up = r.get('Upside', r.get('Media_Ajustada', 0))
-                                if up > max_up:
-                                    max_up = up
-                                    best_res_pos_calc = pos
-                                    
-                            save_official_team(
-                                rodada=rodada_num,
-                                starters_df=selected_df,
-                                captain_id=int(capitao_row['ID']),
-                                reserves_dict=reservas,
-                                super_sub_pos=super_sub_pos_chosen or best_res_pos_calc or "Atacante"
-                            )
-                            st.success(f"✅ Time da Rodada {rodada_num} salvo com sucesso!")
-                            st.rerun()
-                    with btn_c2:
-                        if st.button(f"🚀 ESCALAR NO CARTOLA GLOBO", type="primary", use_container_width=True, key="btn_globo_autoscale"):
-                            valid_lineup, val_errors = validate_lineup_rules(selected_df, reservas)
-                            if not valid_lineup:
-                                for err in val_errors:
-                                    st.error(f"❌ {err}")
-                            else:
-                                with st.spinner("Enviando escalação diretamente para os servidores da Globo..."):
-                                    success, resp_globo = api.save_time_to_globo(
-                                        token=token_active,
-                                        esquema_name=chosen_formation,
-                                        captain_id=int(capitao_row['ID']),
-                                        starters_ids=selected_df['ID'].tolist(),
-                                        reserves_dict=reservas,
-                                        super_sub_id=super_sub_id
-                                    )
-                                    handle_globo_escalacao_result(success, resp_globo, rodada_num, selected_df, capitao_row, reservas, super_sub_pos=super_sub_pos_chosen)
-                    with btn_c3:
-                        if st.button("📥 PUXAR DA GLOBO", use_container_width=True, key="btn_sync_advisor", help="Importa alterações feitas no app oficial do Cartola"):
-                            with st.spinner("📥 Sincronizando com a sua conta do Cartola FC..."):
-                                sync_ok, sync_msg = sync_team_from_globo(api, token_active, rodada_num, mercado_data, partidas_data, scorer)
-                                if sync_ok:
-                                    st.success(f"✅ {sync_msg}")
-                                    time.sleep(1.2)
-                                    st.rerun()
-                                else:
-                                    st.error(f"❌ {sync_msg}")
-                else:
-                    act_col1, act_col2 = st.columns([3, 2])
-                    with act_col1:
-                        st.write("🛡️ **Pronto para a rodada?** Salve este time para travar sua escalação oficial e acompanhar parciais ao vivo.")
-                    with act_col2:
-                        if st.button(f"💾 SALVAR COMO TIME OFICIAL (R{rodada_num})", type="primary", use_container_width=True, key="btn_save_advisor"):
-                            save_official_team(
-                                rodada=rodada_num,
-                                starters_df=selected_df,
-                                captain_id=int(capitao_row['ID']),
-                                reserves_dict=reservas,
-                                super_sub_pos=super_sub_pos_chosen or "Atacante"
-                            )
-                            st.success(f"✅ Time da Rodada {rodada_num} salvo como Oficial com sucesso!")
-                            st.rerun()
-
-
         with tab_cards:
-            # ATAQUE
-            atacantes = selected_df[selected_df['Posicao'] == 'Atacante']
-            if not atacantes.empty:
-                st.html('<div class="sector-header">⚡ ATAQUE</div>')
-                cols_ata = st.columns(len(atacantes))
-                for idx, (_, p) in enumerate(atacantes.iterrows()):
-                    with cols_ata[idx]:
-                        render_player_card(p, is_captain=(p['Nome'] == capitao_nome))
-
-            # MEIO-CAMPO
-            meias = selected_df[selected_df['Posicao'] == 'Meia']
-            if not meias.empty:
-                st.html('<div class="sector-header">🎯 MEIO-CAMPO</div>')
-                cols_mei = st.columns(len(meias))
-                for idx, (_, p) in enumerate(meias.iterrows()):
-                    with cols_mei[idx]:
-                        render_player_card(p, is_captain=(p['Nome'] == capitao_nome))
-
-            # DEFESA (Laterais & Zagueiros - Laterais nas pontas, Zagueiros no centro)
-            defesa_raw = selected_df[selected_df['Posicao'].isin(['Lateral', 'Zagueiro'])]
-            if not defesa_raw.empty:
-                defesa = order_defensive_line(defesa_raw)
-                st.html('<div class="sector-header">🛡️ LINHA DEFENSIVA</div>')
-                cols_def = st.columns(len(defesa))
-                for idx, (_, p) in enumerate(defesa.iterrows()):
-                    with cols_def[idx]:
-                        render_player_card(p, is_captain=(p['Nome'] == capitao_nome))
-
-            # GOLEIRO & TÉCNICO
-            gol_tec = selected_df[selected_df['Posicao'].isin(['Goleiro', 'Técnico'])]
-            if not gol_tec.empty:
-                st.html('<div class="sector-header">🧤 GOLEIRO & COMANDO TÉCNICO</div>')
-                cols_base = st.columns([1, 1, 1, 1])
-                goleiro_df = selected_df[selected_df['Posicao'] == 'Goleiro']
-                tecnico_df = selected_df[selected_df['Posicao'] == 'Técnico']
-                
-                with cols_base[1]:
-                    if not goleiro_df.empty:
-                        render_player_card(goleiro_df.iloc[0], is_captain=(goleiro_df.iloc[0]['Nome'] == capitao_nome))
-                with cols_base[2]:
-                    if not tecnico_df.empty:
-                        render_player_card(tecnico_df.iloc[0], is_captain=False)
-
-            # BANCO DE RESERVAS EM CARDS
-            if reservas:
-                st.markdown("---")
-                st.html('<div class="sector-header">🔄 BANCO DE RESERVAS (Troca Automática)</div>')
-                
-                res_cols = st.columns(len(reservas))
-                for idx, (pos, r) in enumerate(reservas.items()):
-                    with res_cols[idx]:
-                        is_super = (pos == super_sub_pos_chosen)
-                        gain = r.get('Expected_Gain', 0) if hasattr(r, 'get') else 0
-                        render_player_card(r, is_super_sub=is_super, sub_gain=gain)
-
-                        # Seletor para troca manual de reserva desta posição com regras estritas
-                        starter_pos_players = selected_df[selected_df['Posicao'] == pos]
-                        if starter_pos_players.empty:
-                            st.caption("Posição não usada nesta formação")
-                            continue
-
-                        cheapest_price = round(float(starter_pos_players['Preco'].min()), 2)
-                        
-                        # Alerta caso o reserva atual viole a regra de preço após trocas de titulares
-                        curr_res_price = float(r.get('Preco', 0.0))
-                        if curr_res_price > cheapest_price:
-                            st.error(f"⚠️ **Preço Excedido:** C$ {curr_res_price:.2f} > máx C$ {cheapest_price:.2f}")
-
-                        # Filtragem rigorosa oficial da Globo:
-                        # 1. Mesma posição
-                        # 2. Não pode estar entre os titulares
-                        # 3. Preço rigorosamente menor ou igual ao titular mais barato daquela posição
-                        # 4. Apenas atletas confirmados como Provável (Status_ID == 7)
-                        cond_pos = (df['Posicao'] == pos)
-                        cond_not_starter = (~df['ID'].isin(selected_df['ID'].tolist()))
-                        cond_price = (df['Preco'] <= cheapest_price)
-                        cond_status = (df['Status_ID'] == 7) if 'Status_ID' in df.columns else True
-
-                        available_bench_candidates = df[cond_pos & cond_not_starter & cond_price & cond_status].copy()
-
-                        if not available_bench_candidates.empty:
-                            with st.popover(f"🔄 Trocar {pos[:3]}", use_container_width=True):
-                                st.caption(f"Opções **Prováveis** para {pos} (máx. C$ {cheapest_price:.2f}):")
-                                cand_list = available_bench_candidates.sort_values(by=['Upside', 'Media_Ajustada'], ascending=[False, False])
-                                cand_labels = [f"{row['Nome']} ({row['Clube']} • C$ {row['Preco']:.2f} • xP {row['Media_Ajustada']:.2f} • 🟢 Provável)" for _, row in cand_list.iterrows()]
-                                current_res_id = r.get('ID') if hasattr(r, 'get') else None
-                                current_cand_idx = 0
-                                for c_i, (_, c_row) in enumerate(cand_list.iterrows()):
-                                    if c_row['ID'] == current_res_id:
-                                        current_cand_idx = c_i
-                                        break
-                                chosen_cand_label = st.selectbox(f"Selecione {pos}:", options=cand_labels, index=current_cand_idx, key=f"sel_bench_{pos}")
-                                if st.button(f"Confirmar Reserva", key=f"btn_apply_bench_{pos}", use_container_width=True):
-                                    cand_selected_row = cand_list.iloc[cand_labels.index(chosen_cand_label)].copy()
-                                    if float(cand_selected_row['Preco']) > cheapest_price:
-                                        st.error(f"❌ **Regra Violada:** O atleta custa C$ {cand_selected_row['Preco']:.2f}, ultrapassando o limite de C$ {cheapest_price:.2f} (preço do titular mais barato de {pos}).")
-                                    elif cand_selected_row.get('Status_ID') and int(cand_selected_row.get('Status_ID')) != 7:
-                                        st.error(f"❌ **Status Inválido:** Apenas atletas 'Provável' são aceitos no banco de reservas.")
-                                    else:
-                                        worst_starter_xp = starter_pos_players['Media_Ajustada'].min() if not starter_pos_players.empty else 0.0
-                                        cand_selected_row['Worst_Starter_XP'] = worst_starter_xp
-                                        cand_selected_row['Expected_Gain'] = round(max(0.0, (cand_selected_row.get('Upside', cand_selected_row.get('Media_Ajustada', 0.0)) - worst_starter_xp) * 0.4), 2)
-                                        if "custom_reserves" not in st.session_state:
-                                            st.session_state["custom_reserves"] = dict(reservas)
-                                        st.session_state["custom_reserves"][pos] = cand_selected_row
-                                        st.session_state["custom_mode_owner"] = app_mode
-                                        st.success(f"✅ {cand_selected_row['Nome']} definido como reserva de {pos}!")
-                                        st.rerun()
-
-                super_r = reservas.get(super_sub_pos_chosen, list(reservas.values())[0])
-                st.success(f"⭐ **Reserva de Luxo Ativo:** **{super_r['Nome']} ({super_r['Posicao']} - {super_r['Clube']})** | Teto: **{super_r.get('Upside', 0):.2f} pts**!")
-
-                st.markdown("")
-                tab_btn1, tab_btn2, tab_btn3 = st.columns(3)
-                with tab_btn1:
-                    if st.button(f"💾 SALVAR NO APP (RODADA {rodada_num})", use_container_width=True, key="btn_save_tab_cards"):
-                        save_official_team(
-                            rodada=rodada_num,
-                            starters_df=selected_df,
-                            captain_id=int(capitao_row['ID']),
-                            reserves_dict=reservas,
-                            super_sub_pos=super_sub_pos_chosen or "Atacante"
-                        )
-                        st.success(f"✅ Time da Rodada {rodada_num} salvo com sucesso!")
-                        st.rerun()
-                with tab_btn2:
-                    if st.button("🚀 ESCALAR NO CARTOLA GLOBO", type="primary", use_container_width=True, key="btn_globo_autoscale_cards"):
-                        valid_lineup, val_errors = validate_lineup_rules(selected_df, reservas)
-                        if not valid_lineup:
-                            for err in val_errors:
-                                st.error(f"❌ {err}")
-                        else:
-                            with st.spinner("Enviando escalação diretamente para a Globo..."):
-                                token_to_use = active_token or (st.secrets.get("cartola_token", "") if hasattr(st, "secrets") else "")
-                                success, resp_globo = api.save_time_to_globo(
-                                    token=token_to_use,
-                                    esquema_name=chosen_formation,
-                                    captain_id=int(capitao_row['ID']),
-                                    starters_ids=selected_df['ID'].tolist(),
-                                    reserves_dict=reservas,
-                                    super_sub_id=super_sub_id
-                                )
-                                handle_globo_escalacao_result(success, resp_globo, rodada_num, selected_df, capitao_row, reservas, super_sub_pos=super_sub_pos_chosen)
-                with tab_btn3:
-                    if st.button("📥 PUXAR DA GLOBO", use_container_width=True, key="btn_sync_tab_cards", help="Sincroniza as alterações que você fez no app oficial do Cartola FC"):
-                        with st.spinner("📥 Sincronizando com a sua conta oficial do Cartola..."):
-                            token_to_use = active_token or (st.secrets.get("cartola_token", "") if hasattr(st, "secrets") else "")
-                            sync_ok, sync_msg = sync_team_from_globo(api, token_to_use, rodada_num, mercado_data, partidas_data, scorer)
-                            if sync_ok:
-                                st.success(f"✅ {sync_msg}")
-                                time.sleep(1.2)
-                                st.rerun()
-                            else:
-                                st.error(f"❌ {sync_msg}")
-
+            render_cards_tab(
+                df, selected_df, reservas, capitao_row, capitao_nome, chosen_formation,
+                super_sub_id, super_sub_pos_chosen, rodada_num, app_mode,
+                active_token, api, scorer, mercado_data, partidas_data,
+            )
 
         with tab_live:
-            # 🔴 PARCIAIS AO VIVO
-            active_round = official_round if app_mode == "oficial" else rodada_num
-            col_l1, col_l2 = st.columns([3, 1])
-            with col_l1:
-                st.subheader(f"🔴 Parciais em Tempo Real • M1TOS EC (Rodada {active_round})")
-            with col_l2:
-                refresh_live = st.button("🔄 Atualizar Parciais", use_container_width=True)
-
-            try:
-                pontuados_data = api.get_pontuados(active_round if active_round and active_round != '?' else None)
-            except Exception:
-                pontuados_data = api.get_pontuados()
-
-            pontuados = pontuados_data.get('atletas', {})
-            total_pontuados_count = len(pontuados)
-
-            if total_pontuados_count == 0:
-                st.info("ℹ️ Os jogos da rodada ainda não começaram ou os scouts ao vivo ainda não foram abertos pela Globo. Assim que os jogos começarem, as parciais aparecerão aqui automaticamente!")
-            else:
-                st.caption(f"📡 Dados ao vivo sincronizados com a Globo • {total_pontuados_count} atletas pontuaram na Rodada {active_round}.")
-
-            # Calcular parciais do time e valorização
-            live_rows = []
-            total_live_pts = 0.0
-            jogadores_jogando = 0
-            valorizando_count = 0
-            desvalorizando_count = 0
-            
-            # Mapear pontuações por posição para checagem do reserva de luxo
-            pos_starter_scores = {'Goleiro': [], 'Lateral': [], 'Zagueiro': [], 'Meia': [], 'Atacante': []}
-
-            for _, p in selected_df.iterrows():
-                atleta_id_str = str(p.get('ID'))
-                is_cap = (p['Nome'] == capitao_nome)
-                preco_p = float(p.get('Preco', 10.0))
-                min_val_p = float(p.get('Min_Val', preco_p * 0.37))
-                
-                if atleta_id_str in pontuados:
-                    pinfo = pontuados[atleta_id_str]
-                    pts_bruto = float(pinfo.get('pontuacao', 0.0))
-                    pts_calc = pts_bruto * 1.5 if is_cap else pts_bruto
-                    total_live_pts += pts_calc
-                    jogadores_jogando += 1
-                    status_live = f"🟢 {pts_bruto:.2f} pts"
-                    
-                    diff_v = pts_bruto - min_val_p
-                    if diff_v >= 0:
-                        val_str = f"📈 Valorizando (+{diff_v:.2f} pts | Mín: {min_val_p:.2f})"
-                        valorizando_count += 1
-                    else:
-                        val_str = f"📉 Desvalorizando (Faltam {abs(diff_v):.2f} pts | Mín: {min_val_p:.2f})"
-                        desvalorizando_count += 1
-                        
-                    scouts_raw = pinfo.get('scout', {})
-                    scouts_str = ", ".join([f"{k}:{v}" for k, v in scouts_raw.items()]) if scouts_raw else "Em campo"
-                else:
-                    pts_bruto = None
-                    pts_calc = 0.0
-                    status_live = "⏳ Aguardando jogo"
-                    val_str = f"⏳ Mínimo: {min_val_p:.2f} pts"
-                    scouts_str = "-"
-
-                if p['Posicao'] in pos_starter_scores:
-                    pos_starter_scores[p['Posicao']].append({
-                        'Nome': p['Nome'],
-                        'pts': pts_bruto,
-                        'jogou': (pts_bruto is not None)
-                    })
-
-                nome_disp = f"👑 {p['Nome']} [C]" if is_cap else p['Nome']
-                live_rows.append({
-                    "Posição": p['Posicao'],
-                    "Jogador": nome_disp,
-                    "Clube": p['Clube'],
-                    "Status / Pontos": status_live,
-                    "Pontos c/ Capitão": f"{pts_calc:.2f} pts" if pts_bruto is not None else "-",
-                    "Valorização / Mínimo": val_str,
-                    "Scouts na Partida": scouts_str
-                })
-
-            # Cards de Métricas Principais (Pontuação e Valorização)
-            col_metric1, col_metric2 = st.columns(2)
-            with col_metric1:
-                st.html(f'''
-                <div class="metric-card" style="background:linear-gradient(135deg, #1e3a8a, #0f172a); border:2px solid #38bdf8; min-height:105px; display:flex; flex-direction:column; justify-content:center; box-sizing:border-box;">
-                    <div class="metric-title" style="color:#38bdf8; font-size:0.75rem;">⚡ PONTUAÇÃO PARCIAL TOTAL</div>
-                    <div class="metric-value" style="font-size:1.9rem; color:#f8fafc; line-height:1.2;">{total_live_pts:.2f} <span style="font-size:1.0rem; color:#38bdf8;">pts</span></div>
-                    <div style="font-size:0.75rem; color:#94a3b8; margin-top:3px;">{jogadores_jogando} de 12 atletas em campo</div>
-                </div>
-                ''')
-            with col_metric2:
-                val_pill = f'<span style="color:#34d399;font-weight:800;">🟢 {valorizando_count}</span> <span style="color:#64748b;font-size:1.2rem;">/</span> <span style="color:#f87171;font-weight:800;">🔴 {desvalorizando_count}</span>' if jogadores_jogando > 0 else '<span style="color:#94a3b8;font-size:1.1rem;">Aguardando jogos</span>'
-                st.html(f'''
-                <div class="metric-card" style="background:linear-gradient(135deg, #064e3b, #0f172a); border:2px solid #34d399; min-height:105px; display:flex; flex-direction:column; justify-content:center; box-sizing:border-box;">
-                    <div class="metric-title" style="color:#34d399; font-size:0.75rem;">📈 VALORIZAÇÃO EM TEMPO REAL</div>
-                    <div class="metric-value" style="font-size:1.9rem; color:#f8fafc; line-height:1.2;">{val_pill}</div>
-                    <div style="font-size:0.75rem; color:#94a3b8; margin-top:3px;">Atletas acima / abaixo do mínimo</div>
-                </div>
-                ''')
-
-            # Checagem ao vivo do Banco de Reservas (Regra Oficial do Cartola FC)
-            # O reserva de uma posição só entra se um titular da mesma posição NÃO entrar em campo (0 minutos / não pontuou).
-            best_res_pos = super_sub_pos_chosen
-            if not best_res_pos and reservas:
-                max_upside = -1.0
-                for pos, r in reservas.items():
-                    up = r.get('Upside', r.get('Media_Ajustada', 0))
-                    if up > max_upside:
-                        max_upside = up
-                        best_res_pos = pos
-
-            if best_res_pos and best_res_pos in reservas:
-                super_res = reservas[best_res_pos]
-                res_id_str = str(super_res.get('ID'))
-                pts_res = float(pontuados[res_id_str].get('pontuacao', 0.0)) if res_id_str in pontuados else None
-                titulares_pos = pos_starter_scores.get(best_res_pos, [])
-
-                # Verificar se algum titular da posição não jogou ou se todos já atuaram
-                titulares_sem_atuar = [t for t in titulares_pos if not t['jogou']]
-                titulares_atuaram = [t for t in titulares_pos if t['jogou']]
-
-                if total_pontuados_count == 0:
-                    st.info(f"🛡️ **Banco de Reservas Oficial ({super_res['Posicao']}):** **{super_res['Nome']}** ({super_res['Clube']}). Pela regra do Cartola FC, ele entrará caso algum titular da posição não atue.")
-                elif titulares_sem_atuar and pts_res is not None:
-                    nom_sub = titulares_sem_atuar[0]['Nome']
-                    st.warning(f"🔄 **SUBSTITUIÇÃO EM POTENCIAL (Regra Oficial da Globo):** O titular **{nom_sub}** ainda não pontuou/não jogou. Se não atuar, **{super_res['Nome']} ({pts_res:.2f} pts)** entrará na pontuação oficial!")
-                elif len(titulares_atuaram) == len(titulares_pos) and len(titulares_pos) > 0:
-                    pts_info = f"({pts_res:.2f} pts)" if pts_res is not None else "(não jogou)"
-                    st.success(f"✅ **Titulares de {best_res_pos} confirmados em campo!** Todos os titulares atuaram na rodada, portanto a pontuação deles é definitiva e o reserva {super_res['Nome']} {pts_info} não é acionado (Regra Oficial da Globo).")
-                else:
-                    status_res_txt = f"já fez **{pts_res:.2f} pts**" if pts_res is not None else "ainda não jogou"
-                    st.info(f"⏳ **Reserva ({super_res['Posicao']}):** {super_res['Nome']} {status_res_txt}. Aguardando o término dos jogos para confirmação de presença de todos os titulares.")
-
-            with st.expander("📊 Ver Tabela Detalhada de Parciais e Scouts", expanded=False):
-                st.dataframe(pd.DataFrame(live_rows), use_container_width=True, hide_index=True)
-
-            # ATAQUE AO VIVO
-            atacantes = selected_df[selected_df['Posicao'] == 'Atacante']
-            if not atacantes.empty:
-                st.html('<div class="sector-header">⚡ ATAQUE AO VIVO</div>')
-                cols_ata = st.columns(len(atacantes))
-                for idx, (_, p) in enumerate(atacantes.iterrows()):
-                    with cols_ata[idx]:
-                        pinfo = pontuados.get(str(p.get('ID')))
-                        render_live_player_card(p, pinfo=pinfo, is_captain=(p['Nome'] == capitao_nome))
-
-            # MEIO-CAMPO AO VIVO
-            meias = selected_df[selected_df['Posicao'] == 'Meia']
-            if not meias.empty:
-                st.html('<div class="sector-header">🎯 MEIO-CAMPO AO VIVO</div>')
-                cols_mei = st.columns(len(meias))
-                for idx, (_, p) in enumerate(meias.iterrows()):
-                    with cols_mei[idx]:
-                        pinfo = pontuados.get(str(p.get('ID')))
-                        render_live_player_card(p, pinfo=pinfo, is_captain=(p['Nome'] == capitao_nome))
-
-            # DEFESA AO VIVO (Laterais nas pontas, Zagueiros no centro)
-            defesa_raw = selected_df[selected_df['Posicao'].isin(['Lateral', 'Zagueiro'])]
-            if not defesa_raw.empty:
-                defesa = order_defensive_line(defesa_raw)
-                st.html('<div class="sector-header">🛡️ LINHA DEFENSIVA AO VIVO</div>')
-                cols_def = st.columns(len(defesa))
-                for idx, (_, p) in enumerate(defesa.iterrows()):
-                    with cols_def[idx]:
-                        pinfo = pontuados.get(str(p.get('ID')))
-                        render_live_player_card(p, pinfo=pinfo, is_captain=(p['Nome'] == capitao_nome))
-
-            # GOLEIRO & TÉCNICO AO VIVO
-            gol_tec = selected_df[selected_df['Posicao'].isin(['Goleiro', 'Técnico'])]
-            if not gol_tec.empty:
-                st.html('<div class="sector-header">🧤 GOLEIRO & COMANDO TÉCNICO AO VIVO</div>')
-                cols_base = st.columns([1, 1, 1, 1])
-                goleiro_df = selected_df[selected_df['Posicao'] == 'Goleiro']
-                tecnico_df = selected_df[selected_df['Posicao'] == 'Técnico']
-                
-                with cols_base[1]:
-                    if not goleiro_df.empty:
-                        gp = goleiro_df.iloc[0]
-                        render_live_player_card(gp, pinfo=pontuados.get(str(gp.get('ID'))), is_captain=(gp['Nome'] == capitao_nome))
-                with cols_base[2]:
-                    if not tecnico_df.empty:
-                        tp = tecnico_df.iloc[0]
-                        render_live_player_card(tp, pinfo=pontuados.get(str(tp.get('ID'))), is_captain=False)
-
-            # BANCO DE RESERVAS AO VIVO
-            if reservas:
-                st.markdown("---")
-                st.html('<div class="sector-header">🔄 BANCO DE RESERVAS AO VIVO</div>')
-                res_cols = st.columns(len(reservas))
-                for idx, (pos, r) in enumerate(reservas.items()):
-                    with res_cols[idx]:
-                        is_super = (pos == best_res_pos)
-                        rpinfo = pontuados.get(str(r.get('ID')))
-                        render_live_player_card(r, pinfo=rpinfo, is_super_sub=is_super)
+            pontuados, best_res_pos = render_live_tab(
+                selected_df, reservas, capitao_nome, super_sub_pos_chosen,
+                rodada_num, official_round, app_mode, api,
+            )
 
         with tab_table:
-            # Tabela Tradicional para quem quiser consultar números
-            pos_order = ['Goleiro', 'Lateral', 'Zagueiro', 'Meia', 'Atacante', 'Técnico']
-            table_rows = []
-            for pos in pos_order:
-                players = selected_df[selected_df['Posicao'] == pos]
-                for _, p in players.iterrows():
-                    is_cap = p['Nome'] == capitao_nome
-                    nome_display = f"👑 {p['Nome']} [CAPITÃO]" if is_cap else p['Nome']
-                    xp_val = p['Media_Ajustada'] * 1.5 if is_cap else p['Media_Ajustada']
-                    media_val = f"{p['Media']:.2f}" if ('Media' in p and pd.notna(p['Media'])) else f"{p.get('Media_Ajustada', 0.0):.2f}"
-                    min_val = f"C$ {p['Min_Val']:.2f}" if ('Min_Val' in p and pd.notna(p['Min_Val'])) else f"C$ {(p.get('Preco', 0.0) * 0.37):.2f}"
-                    sg_val = f"{p['SG_Prob']:.0f}%" if ('SG_Prob' in p and pd.notna(p['SG_Prob']) and p['Posicao'] in ['Goleiro', 'Lateral', 'Zagueiro']) else "-"
-                    table_rows.append({
-                        "Posição": p['Posicao'],
-                        "Jogador": nome_display,
-                        "Clube": p['Clube'],
-                        "Preço (C$)": f"C$ {p['Preco']:.2f}",
-                        "Média Hist.": media_val,
-                        "Chance SG": sg_val,
-                        "Mín. Val.": min_val,
-                        "xP Esperado": f"{xp_val:.2f} pts"
-                    })
-            st.dataframe(pd.DataFrame(table_rows), use_container_width=True, hide_index=True)
+            render_table_tab(selected_df, capitao_nome)
 
         with tab_comp:
-            st.subheader(f"📈 Comparativo de Esquemas Táticos • Rodada {rodada_num}")
-            st.caption("O otimizador MILP calcula a melhor combinação matemática de atletas possível para cada uma das formações oficiais com base no seu patrimônio.")
-
-            # Se não foi calculado previamente (ex: modo oficial ou formação fixa), calcula agora
-            if all_formations_summary is None or len(all_formations_summary) <= 1:
-                with st.spinner("Calculando a melhor escalação para todas as formações..."):
-                    _, _, _, all_formations_summary = optimizer.optimize_best_formation(
-                        df, budget=budget, max_players_per_club=max_per_club
-                    )
-
-            if all_formations_summary:
-                sorted_forms = sorted(all_formations_summary.items(), key=lambda x: x[1]['score'], reverse=True)
-                best_overall_form = sorted_forms[0][0]
-                best_overall_score = sorted_forms[0][1]['score']
-
-                # 1. Cards Comparativos no Topo
-                f_cols = st.columns(len(sorted_forms))
-                for idx, (f_name, data) in enumerate(sorted_forms):
-                    with f_cols[idx]:
-                        is_best = (f_name == best_overall_form)
-                        is_active = (f_name == chosen_formation)
-                        bg_grad = "linear-gradient(135deg, #1e3a8a, #0f172a)" if is_best else "#1e293b"
-                        border_c = "#38bdf8" if is_best else ("#f59e0b" if is_active else "#334155")
-                        badge_label = "🏆 CAMPEÃ GLOBAL" if is_best else ("⭐ ATIVA" if is_active else f"{f_name}")
-                        
-                        st.html(f'''
-                        <div class="metric-card" style="background:{bg_grad}; border:2px solid {border_c}; padding:10px 6px;">
-                            <div style="font-size:0.68rem; font-weight:800; color:{border_c}; margin-bottom:2px;">{badge_label}</div>
-                            <div style="font-size:1.15rem; font-weight:900; color:#f8fafc;">{f_name}</div>
-                            <div style="font-size:1.20rem; font-weight:900; color:#34d399; margin:4px 0;">{data['score']:.2f} <span style="font-size:0.75rem; color:#94a3b8;">xP</span></div>
-                            <div style="font-size:0.70rem; color:#cbd5e1;">Custo: C$ {data['cost']:.2f}</div>
-                        </div>
-                        ''')
-
-                st.markdown("")
-
-                # 2. Tabela Comparativa Detalhada
-                comp_data = []
-                for f_name, data in sorted_forms:
-                    delta_pts = round(data['score'] - best_overall_score, 2)
-                    delta_str = "🏆 Melhor" if delta_pts == 0 else f"{delta_pts:.2f} pts"
-                    status_str = "🏆 Maior Pontuação" if f_name == best_overall_form else ("⭐ Sua Formação" if f_name == chosen_formation else "Opção")
-                    
-                    # Contagem de posições
-                    f_df = data['df']
-                    num_ata = len(f_df[f_df['Posicao'] == 'Atacante'])
-                    num_mei = len(f_df[f_df['Posicao'] == 'Meia'])
-                    num_zag = len(f_df[f_df['Posicao'] == 'Zagueiro'])
-                    num_lat = len(f_df[f_df['Posicao'] == 'Lateral'])
-                    
-                    comp_data.append({
-                        "Formação": f_name,
-                        "Pontos Esperados (xP)": f"{data['score']:.2f} pts",
-                        "Diferença p/ Líder": delta_str,
-                        "Custo Total": f"C$ {data['cost']:.2f}",
-                        "Estrutura Tática": f"{num_lat} LAT • {num_zag} ZAG • {num_mei} MEI • {num_ata} ATA",
-                        "Status": status_str
-                    })
-                st.dataframe(pd.DataFrame(comp_data), use_container_width=True, hide_index=True)
-
-                # 3. Expanders para Ver o Time Ideal de Cada Formação
-                st.markdown("### 📋 Escalação Ideal por Formação")
-                for f_name, data in sorted_forms:
-                    f_df = data['df']
-                    f_cap = f_df[f_df['Is_Capitao']].iloc[0]['Nome'] if 'Is_Capitao' in f_df.columns and f_df['Is_Capitao'].any() else f_df.iloc[0]['Nome']
-                    with st.expander(f"🔍 Ver time ideal na formação **{f_name}** ({data['score']:.2f} pts • C$ {data['cost']:.2f} • 👑 Capitão: {f_cap})"):
-                        cols_exp = st.columns(4)
-                        for ath_idx, (_, ath) in enumerate(f_df.iterrows()):
-                            with cols_exp[ath_idx % 4]:
-                                render_player_card(ath, is_captain=(ath['Nome'] == f_cap))
+            render_comparison_tab(
+                df, rodada_num, budget, max_per_club, chosen_formation,
+                all_formations_summary, optimizer,
+            )
 
         # Relatório Unificado de Desempenho da Rodada (xP Projetado x Pontuação Real)
         st.markdown("---")
-        
+
         report_rows = []
         for _, p in selected_df.iterrows():
             is_cap = (p['Nome'] == capitao_nome)
             xp_exp = p['Media_Ajustada'] * 1.5 if is_cap else p['Media_Ajustada']
             pinfo = pontuados.get(str(p.get('ID')))
-            
+
             if pinfo is not None:
                 pts_b = float(pinfo.get('pontuacao', 0.0))
                 pts_r = pts_b * 1.5 if is_cap else pts_b
@@ -2294,7 +660,7 @@ def main():
                 is_super = (pos == best_res_pos)
                 xp_exp = r.get('Media_Ajustada', 0.0)
                 rpinfo = pontuados.get(str(r.get('ID')))
-                
+
                 if rpinfo is not None:
                     pts_r = float(rpinfo.get('pontuacao', 0.0))
                     diff_pts = round(pts_r - xp_exp, 2)

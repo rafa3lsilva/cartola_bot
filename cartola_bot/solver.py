@@ -1,5 +1,6 @@
-import pulp
 import pandas as pd
+import pulp
+
 
 class TeamOptimizer:
     """Classe responsável por resolver o problema de otimização linear da escalação com PuLP."""
@@ -31,7 +32,7 @@ class TeamOptimizer:
         clubes = dict(zip(ids, df['Clube']))
         upsides = dict(zip(ids, df['Upside'])) if 'Upside' in df.columns else medias
         goals_pg = dict(zip(ids, df['Goals_Per_Game'])) if 'Goals_Per_Game' in df.columns else {}
-        
+
         # Mapeamento de adversários para cada clube a partir de Opp_Abrev ou Confronto
         opp_by_club = {}
         for _, row in df.iterrows():
@@ -47,7 +48,7 @@ class TeamOptimizer:
                         opp = parts[1]
                 if opp and not pd.isna(opp) and opp != 'ADV':
                     opp_by_club[c] = str(opp).strip()
-        
+
         # Calcular scores efetivos combinando média esperada + peso de teto por posição e faro de gol
         effective_scores = {}
         cap_scores = {}
@@ -56,7 +57,7 @@ class TeamOptimizer:
             m = medias[i]
             u = upsides.get(i, m)
             diff = max(0.0, u - m)
-            
+
             if pos in ['Meia', 'Atacante']:
                 effective_scores[i] = m + self.upside_lambda_atk * diff
                 # Fator Artilheiro: atacantes/meias de alto volume de gols (ex: Viveros) ganham preferência para capitão
@@ -72,38 +73,38 @@ class TeamOptimizer:
             else:  # Técnico
                 effective_scores[i] = m
                 cap_scores[i] = 0.0
-        
+
         # 1. Variáveis de Decisão (compatível com todas as versões do PuLP)
         player_vars = {i: pulp.LpVariable(f"Atleta_{i}", cat="Binary") for i in ids}
         captain_vars = {i: pulp.LpVariable(f"Capitao_{i}", cat="Binary") for i in ids}
-        
+
         prob = pulp.LpProblem(f"Otimizador_Cartola_{formation_name}", pulp.LpMaximize)
-        
+
         # 2. Função Objetivo: Maximizar Pontuação Total Esperada + Upside (com Capitão 1.5x)
         prob += pulp.lpSum([
-            effective_scores[i] * player_vars[i] + cap_scores[i] * captain_vars[i] 
+            effective_scores[i] * player_vars[i] + cap_scores[i] * captain_vars[i]
             for i in ids
         ]), "Total_Pontos_Esperados_Upside"
-        
+
         # 3. Restrição de Orçamento
         prob += pulp.lpSum([precos[i] * player_vars[i] for i in ids]) <= budget, "Custo_Total"
-        
+
         # 4. Restrições de Posição
         for pos, limit in reqs.items():
             prob += pulp.lpSum([player_vars[i] for i in ids if posicoes[i] == pos]) == limit, f"Posicao_{pos}"
-            
+
         # 5. Restrições do Capitão
         # Exatamente 1 capitão
         prob += pulp.lpSum([captain_vars[i] for i in ids]) == 1, "Exatamente_Um_Capitao"
-        
+
         for i in ids:
             # Capitão precisa estar entre os titulares
             prob += captain_vars[i] <= player_vars[i], f"Capitao_Titular_{i}"
-            
+
             # Técnico não pode ser capitão
             if posicoes[i] == 'Técnico':
                 prob += captain_vars[i] == 0, f"Tecnico_Nao_Capitao_{i}"
-                
+
         # 6. Restrição de limite de atletas por clube (mitigação de risco geral)
         if max_players_per_club and max_players_per_club > 0:
             unique_clubs = set(clubes.values())
@@ -116,7 +117,7 @@ class TeamOptimizer:
             unique_clubs = set(clubes.values())
             for club in unique_clubs:
                 prob += pulp.lpSum([
-                    player_vars[i] for i in ids 
+                    player_vars[i] for i in ids
                     if clubes[i] == club and posicoes[i] in def_positions
                 ]) <= self.max_defenders_per_club, f"Max_Defensores_Clube_{club}"
 
@@ -127,7 +128,7 @@ class TeamOptimizer:
             for c_def, c_atk in opp_by_club.items():
                 def_ids = [i for i in ids if clubes[i] == c_def and posicoes[i] in def_positions]
                 atk_ids = [i for i in ids if clubes[i] == c_atk and posicoes[i] in atk_mid_positions]
-                
+
                 if def_ids and atk_ids:
                     # Variável binária: 1 se escalar algum defensor do c_def; 0 caso contrário
                     y_def = pulp.LpVariable(f"HasDef_{c_def}_vs_{c_atk}", cat="Binary")
@@ -135,23 +136,23 @@ class TeamOptimizer:
                     # Se y_def == 0 -> 0 defensores de c_def e pode escalar atacantes/meias de c_atk
                     max_def_count = min(len(def_ids), reqs.get('Goleiro', 1) + reqs.get('Lateral', 2) + reqs.get('Zagueiro', 3))
                     max_atk_count = min(len(atk_ids), reqs.get('Meia', 3) + reqs.get('Atacante', 3))
-                    
+
                     prob += pulp.lpSum([player_vars[i] for i in def_ids]) <= max_def_count * y_def, f"ConflictDef_{c_def}_vs_{c_atk}"
                     prob += pulp.lpSum([player_vars[i] for i in atk_ids]) <= max_atk_count * (1 - y_def), f"ConflictAtk_{c_atk}_vs_{c_def}"
-                
+
         # 7. Resolver Modelo
         prob.solve(pulp.PULP_CBC_CMD(msg=0))
-        
+
         if pulp.LpStatus[prob.status] != 'Optimal':
             return None
-            
+
         selected_ids = [i for i in ids if player_vars[i].varValue is not None and player_vars[i].varValue > 0.5]
         captain_ids = [i for i in ids if captain_vars[i].varValue is not None and captain_vars[i].varValue > 0.5]
         captain_id = captain_ids[0] if captain_ids else None
-        
+
         result_df = df[df['ID'].isin(selected_ids)].copy()
         result_df['Is_Capitao'] = result_df['ID'] == captain_id
-        
+
         return result_df
 
     def optimize_best_formation(self, df, budget, max_players_per_club=None, avoid_attack_vs_defense_conflict=None, **kwargs):
@@ -160,12 +161,12 @@ class TeamOptimizer:
         best_df = None
         best_score = -1.0
         all_results = {}
-        
+
         # Testar formações, avaliando 4-3-3 e comparando com alternativas
         formation_order = ['4-3-3'] + [f for f in self.formations.keys() if f != '4-3-3']
         for formation_name in formation_order:
             res_df = self.optimize(
-                df, budget, formation_name, 
+                df, budget, formation_name,
                 max_players_per_club=max_players_per_club,
                 avoid_attack_vs_defense_conflict=avoid_attack_vs_defense_conflict,
                 **kwargs
@@ -174,13 +175,13 @@ class TeamOptimizer:
                 # Calcular pontuação total (soma + bônus de 50% oficial do capitão)
                 cap_bonus = res_df[res_df['Is_Capitao']]['Media_Ajustada'].sum() * 0.5
                 total_score = res_df['Media_Ajustada'].sum() + cap_bonus
-                
+
                 all_results[formation_name] = {
                     'df': res_df,
                     'score': round(total_score, 2),
                     'cost': round(res_df['Preco'].sum(), 2)
                 }
-                
+
                 # Se for 4-3-3, assume como base. Outra formação só substitui se trouxer ganho real relevante (>= 0.5 pts)
                 if best_df is None:
                     best_score = total_score
@@ -190,67 +191,67 @@ class TeamOptimizer:
                     best_score = total_score
                     best_df = res_df
                     best_formation = formation_name
-                    
+
         return best_formation, best_df, best_score, all_results
 
     def get_reservas(self, df, selected_df):
         """Retorna o 'Reserva de Luxo' para cada posição (exceto Técnico) focado no maior teto de pontos."""
         reservas = {}
         selected_ids = selected_df['ID'].tolist()
-        
+
         for pos in ['Goleiro', 'Lateral', 'Zagueiro', 'Meia', 'Atacante']:
             titulares = selected_df[selected_df['Posicao'] == pos]
             if titulares.empty:
                 continue
-                
+
             cheapest_starter_price = titulares['Preco'].min()
             worst_starter_xp = titulares['Media_Ajustada'].min()
-            
+
             # Regra oficial: reserva deve custar <= ao titular mais barato daquela posição
             candidates = df[
-                (df['Posicao'] == pos) & 
-                (~df['ID'].isin(selected_ids)) & 
+                (df['Posicao'] == pos) &
+                (~df['ID'].isin(selected_ids)) &
                 (df['Preco'] <= cheapest_starter_price)
             ].copy()
-            
+
             if not candidates.empty:
                 # Priorizar maior Teto / Upside para maximizar a chance e impacto da troca automática
                 if 'Upside' in candidates.columns:
                     candidates = candidates.sort_values(by=['Upside', 'Media_Ajustada'], ascending=[False, False])
                 else:
                     candidates = candidates.sort_values(by='Media_Ajustada', ascending=False)
-                    
+
                 best_res = candidates.iloc[0].to_dict()
                 res_xp = best_res.get('Media_Ajustada', 0)
                 res_upside = best_res.get('Upside', res_xp)
-                
+
                 # Ganho esperado adicional caso o reserva supere o pior titular
                 expected_gain = round(max(0.0, (res_upside - worst_starter_xp) * 0.4), 2)
                 best_res['Expected_Gain'] = expected_gain
                 best_res['Worst_Starter_XP'] = worst_starter_xp
-                
+
                 reservas[pos] = pd.Series(best_res)
-                
+
         return reservas
 
     def analyze_user_lineup(self, df, selected_df, captain_id=None, budget=146.07):
         """Analisa a escalação escolhida pelo usuário e gera diagnóstico detalhado atleta por atleta."""
         if selected_df.empty:
             return None
-            
+
         selected_ids = selected_df['ID'].tolist()
         total_cost = float(selected_df['Preco'].sum())
         budget_left = round(budget - total_cost, 2)
-        
+
         # Identificar capitão
         if captain_id is None or captain_id not in selected_ids:
             cap_idx = selected_df['Media_Ajustada'].idxmax()
             captain_id = selected_df.loc[cap_idx, 'ID']
-            
+
         cap_row = selected_df[selected_df['ID'] == captain_id].iloc[0]
         cap_extra = float(cap_row['Media_Ajustada'] * 0.5)
         total_xp = round(float(selected_df['Media_Ajustada'].sum() + cap_extra), 2)
-        
+
         starters_analysis = []
         manter_count = 0
         atencao_count = 0
@@ -261,7 +262,7 @@ class TeamOptimizer:
         def_positions = {'Goleiro', 'Lateral', 'Zagueiro'}
         atk_positions = {'Meia', 'Atacante'}
         def_clubs_escalados = set(selected_df[selected_df['Posicao'].isin(def_positions)]['Clube'].unique())
-        
+
         # Mapeamento de adversários para cada clube
         opp_by_club = {}
         for _, row in df.iterrows():
@@ -286,12 +287,12 @@ class TeamOptimizer:
             clube = p['Clube']
             is_cap = (p_id == captain_id)
             xp_final = xp * 1.4 if is_cap else xp
-            
+
             tag = p.get('Tag', 'Boa Opção')
             tag_color = p.get('Tag_Color', '#f59e0b')
             status_cons = p.get('Status_Consultoria', 'MANTER')
             just = p.get('Justificativa', 'Atleta escalado pelo usuário.')
-            
+
             # Detecção de conflito: Atacante/Meia enfrentando a defesa que você próprio escalou
             has_sg_conflict = False
             opp_club = opp_by_club.get(clube)
@@ -306,24 +307,24 @@ class TeamOptimizer:
                     status_cons = 'ATENCAO'
                     tag = 'Atenção (Conflito SG)'
                     tag_color = '#f59e0b'
-            
+
             if status_cons == 'MANTER':
                 manter_count += 1
             elif status_cons == 'ATENCAO':
                 atencao_count += 1
             else:
                 trocar_count += 1
-                
+
             # Buscar melhor alternativa de troca na mesma posição
             # Alternativa viável: não estar no time, preço <= preco + max(0, budget_left), e com maior xP
             max_afford_price = preco + max(0.0, budget_left)
             candidates = df[
-                (df['Posicao'] == pos) & 
-                (~df['ID'].isin(selected_ids)) & 
-                (df['Preco'] <= max_afford_price) & 
+                (df['Posicao'] == pos) &
+                (~df['ID'].isin(selected_ids)) &
+                (df['Preco'] <= max_afford_price) &
                 (df['Media_Ajustada'] > xp + 0.6)
             ].sort_values(by='Media_Ajustada', ascending=False)
-            
+
             sugestao = None
             if not candidates.empty:
                 best_cand = candidates.iloc[0]
@@ -331,7 +332,7 @@ class TeamOptimizer:
                 cand_preco = float(best_cand['Preco'])
                 delta_xp = round(cand_xp - xp, 2)
                 delta_preco = round(preco - cand_preco, 2)
-                
+
                 sugestao = {
                     'ID': best_cand['ID'],
                     'Nome': best_cand['Nome'],

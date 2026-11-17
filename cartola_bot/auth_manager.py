@@ -1,14 +1,14 @@
-import requests
 import json
 import os
-import time
 from datetime import datetime
+
+import requests
 
 SESSION_FILE = ".session_cache.json"
 
 class AuthManager:
     """Gerencia autenticação na Globo, ciclo de vida de tokens e persistência de sessão."""
-    
+
     HEADERS = {
         "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "application/json",
@@ -32,24 +32,24 @@ class AuthManager:
                 "serviceId": 438
             }
         }
-        
+
         try:
             resp = requests.post(url, json=payload, headers=AuthManager.HEADERS, timeout=12)
-            
+
             if resp.status_code == 200:
                 data = resp.json()
                 user_info = data.get("user", {})
                 glbid = user_info.get("glbId", "")
                 token = user_info.get("token", "") or glbid
-                
+
                 cookies = resp.cookies.get_dict()
                 if "GLBID" in cookies:
                     glbid = cookies["GLBID"]
-                
+
                 auth_token = f"Bearer {token}" if not token.startswith("Bearer ") else token
-                
+
                 valid, team_info = AuthManager.validate_token(auth_token, glbid=glbid)
-                
+
                 session_data = {
                     "email": email.strip(),
                     "token": auth_token,
@@ -69,7 +69,7 @@ class AuthManager:
                 return False, "A Globo solicitou verificação de segurança (Captcha). Você pode colar seu token diretamente."
             else:
                 return False, f"Resposta da Globo ({resp.status_code}): {resp.text[:150]}"
-                
+
         except requests.exceptions.Timeout:
             return False, "Tempo de resposta esgotado ao conectar à Globo. Tente novamente."
         except Exception as e:
@@ -83,18 +83,18 @@ class AuthManager:
         """
         if not token:
             return False, None
-            
+
         url = "https://api.cartola.globo.com/auth/time/info"
         headers = dict(AuthManager.HEADERS)
         headers["Authorization"] = f"Bearer {token}" if not token.startswith("Bearer ") else token
         headers["X-GLB-Token"] = token.replace("Bearer ", "")
-        
+
         cookies = {}
         if glbid:
             cookies["GLBID"] = glbid
         else:
             cookies["GLBID"] = token.replace("Bearer ", "")
-            
+
         try:
             resp = requests.get(url, headers=headers, cookies=cookies, timeout=8)
             if resp.status_code == 200:
@@ -165,7 +165,7 @@ class AuthManager:
                 json.dump(session_dict, f, indent=2, ensure_ascii=False)
         except Exception:
             pass
-            
+
         if save_to_cloud:
             try:
                 from cartola_bot.gsheets_manager import save_auth_session

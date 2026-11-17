@@ -48,6 +48,10 @@ exports/img/*
 *.swp
 *.swo
 
+# Sessão e credenciais locais
+.session_cache.json
+*.session_cache.json
+
 # IDEs e Editores
 .vscode/
 .idea/
